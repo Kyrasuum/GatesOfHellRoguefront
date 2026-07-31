@@ -127,7 +127,7 @@ func (a *app) run(debug bool) error {
 		return err
 	}
 
-	menu := stage.Game{}
+	menu := stage.MainMenu{}
 	err = menu.Init()
 	if err != nil {
 		return err
