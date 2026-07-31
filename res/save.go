@@ -9,6 +9,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/iancoleman/strcase"
 )
 
 type Save struct {
@@ -118,7 +120,7 @@ func ReadSave(filename string) (*Save, error) {
 }
 
 func (s *Save) Write() error {
-	file, err := os.Create(s.Status.Name + ".sav")
+	file, err := os.Create(strcase.ToLowerCamel(s.Status.Name) + ".sav")
 	if err != nil {
 		return err
 	}
