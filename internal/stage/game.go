@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,17 +27,17 @@ import (
 var ()
 
 type Game struct {
-	Profile  string
-	Game     string
-	Workshop string
+	Profile  string `json:"profile"`
+	Game     string `json:"game"`
+	Workshop string `json:"workshop"`
 
-	Maps    map[string][]string
-	Mods    []string
-	Nations []string
+	Maps    map[string][]string `json:"maps"`
+	Mods    []string            `json:"mods"`
+	Nations []string            `json:"nations"`
 
-	State res.Save
+	State res.Save `json:"state"`
 
-	paused bool
+	paused bool `json:"-"`
 }
 
 func (g *Game) Default() {
@@ -173,6 +175,29 @@ func (g *Game) OnRemove() {
 	}
 }
 
+func (g *Game) Populate() error {
+	g.PopulateMaps()
+	g.PopulateUnits()
+	g.PopulateSquads()
+	g.PopulateItems()
+	g.PopulateVehicles()
+
+	ret := 0
+	if len(g.Nations) < 1 {
+		log.Printf("Failed to populate nations\n")
+		ret = 1
+	}
+	if len(g.Maps) < 1 {
+		log.Printf("Failed to populate maps\n")
+		ret = 1
+	}
+
+	if ret != 0 {
+		return fmt.Errorf("Failed to populate")
+	}
+	return nil
+}
+
 func (g *Game) PopulateMaps() {
 	ReadMaps := func(data []byte) {
 		scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -239,8 +264,20 @@ func (g *Game) PopulateMaps() {
 
 func (g *Game) PopulateUnits() {}
 
+func (g *Game) PopulateSquads() {}
+
+func (g *Game) PopulateItems() {}
+
+func (g *Game) PopulateVehicles() {}
+
+func (g *Game) ReRoll() {
+	g.RollLandscape()
+	g.RollRegion()
+	g.RollMap()
+	g.RollEnemy()
+}
+
 func (g *Game) RollLandscape() {
-	// roll landscape
 	landscapes := []string{
 		"wood",
 		"winter",
@@ -269,4 +306,16 @@ func (g *Game) SaveGame() {
 	g.State.Write(g.Profile)
 }
 
-func (g *Game) LoadGame() {}
+func (g *Game) LoadGame(path string) error {
+	// Load the settings file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	// Unmarshall the campaign
+	return json.Unmarshal(data, g)
+}

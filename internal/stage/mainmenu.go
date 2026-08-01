@@ -320,8 +320,6 @@ func (s *MainMenu) UpdateNations() {
 					name := split[len(split)-1]
 					name = name[:len(name)-4]
 					if !slices.Contains(s.nationlist[:], name) {
-						fmt.Printf("%+v\n", f.Name)
-						fmt.Printf("%+v\n", name)
 						s.nationlist = append(s.nationlist, name)
 						s.nations = s.nations + fmt.Sprintf(";#0%d#"+name, len(s.nationlist))
 					}
@@ -593,13 +591,12 @@ func (s *MainMenu) NewGame() {
 	} else {
 		game.State.Status.FogOfWar = "fog_off"
 	}
-	game.PopulateMaps()
-	game.PopulateUnits()
-
-	game.RollLandscape()
-	game.RollRegion()
-	game.RollMap()
-	game.RollEnemy()
+	err = game.Populate()
+	if err != nil {
+		log.Printf("%+v\n", err)
+		return
+	}
+	game.ReRoll()
 
 	s.SaveSettings()
 	app.CurApp.SetStage(&game)
@@ -609,9 +606,22 @@ func (s *MainMenu) LoadGame(file string) {
 	if s == nil {
 		return
 	}
-	//TODO: implement loading game logic
+
+	game := Game{}
+	err := game.Init()
+	if err != nil {
+		log.Printf("%+v", err)
+		return
+	}
+
+	err = game.LoadGame(file)
+	if err != nil {
+		log.Printf("%+v", err)
+		return
+	}
 
 	s.SaveSettings()
+	app.CurApp.SetStage(&game)
 }
 
 func (s *MainMenu) LoadSettings() error {
@@ -671,16 +681,19 @@ func (s *MainMenu) DetectSettings() error {
 	if s.Profile == "" {
 		currentUser, err := user.Current()
 		if err == nil {
-			username := strings.Split(currentUser.Username, "\\")[1]
-			path := fmt.Sprintf("C:\\Users\\%s\\Documents\\My Games\\gates of hell\\profiles", username)
-			info, err := os.Stat(path)
-			if err == nil && info.IsDir() {
-				entries, err := os.ReadDir(path)
-				if err == nil {
-					for _, entry := range entries {
-						if entry.IsDir() {
-							s.Profile = path + "\\" + entry.Name()
-							break
+			username := strings.Split(currentUser.Username, "\\")
+			if len(username) > 1 {
+				name := username[1]
+				path := fmt.Sprintf("C:\\Users\\%s\\Documents\\My Games\\gates of hell\\profiles", name)
+				info, err := os.Stat(path)
+				if err == nil && info.IsDir() {
+					entries, err := os.ReadDir(path)
+					if err == nil {
+						for _, entry := range entries {
+							if entry.IsDir() {
+								s.Profile = path + "\\" + entry.Name()
+								break
+							}
 						}
 					}
 				}

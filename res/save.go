@@ -14,61 +14,61 @@ import (
 )
 
 type Save struct {
-	Campaign *Campaign
-	Status   *Status
+	Campaign *Campaign `json:"campaign"`
+	Status   *Status   `json:"status"`
 }
 
 type Status struct {
-	Mods        []string
-	Timestamp   int64
-	Seed        int64
-	Name        string
-	Army        string
-	EnemyArmy   string
-	Difficulty  string
-	Resources   int
-	FogOfWar    string
-	Region      string
-	PlayedGames int
-	WonGames    int
-	Landscape   string
-	Gamemode    string
-	Map         string
-	Risk        string
-	Texmod      string
+	Mods        []string `json:"mods"`
+	Timestamp   int64    `json:"time"`
+	Seed        int64    `json:"seed"`
+	Name        string   `json:"name"`
+	Army        string   `json:"nation"`
+	EnemyArmy   string   `json:"enemy"`
+	Difficulty  string   `json:"level"`
+	Resources   int      `json:"resources"`
+	FogOfWar    string   `json:"fow"`
+	Region      string   `json:"region"`
+	PlayedGames int      `json:"playedgames"`
+	WonGames    int      `json:"wongames"`
+	Landscape   string   `json:"landscape"`
+	Gamemode    string   `json:"gamemode"`
+	Map         string   `json:"map"`
+	Risk        string   `json:"risk"`
+	Texmod      string   `json:"texmod"`
 }
 
 type Campaign struct {
-	Soldiers    []*Soldier
-	Inventories []*Inventory
-	Squads      []*Squad
+	Soldiers    []*Soldier   `json:"soldiers"`
+	Inventories []*Inventory `json:"inventories"`
+	Squads      []*Squad     `json:"squads"`
 }
 
 type Soldier struct {
-	Id   int
-	Path string
-	Name string
-	Mid  string
+	Id   int    `json:"id"`
+	Path string `json:"path"`
+	Name string `json:"name"`
+	Mid  string `json:"mid"`
 }
 
 type Inventory struct {
-	Id    int
-	Items []Item
+	Id    int    `json:"id"`
+	Items []Item `json:"items"`
 }
 
 type Item struct {
-	Name   string
-	Amount int
+	Name   string `json:"name"`
+	Amount int    `json:"amount"`
 	Pos    *struct {
-		X int
-		Y int
-	}
-	Equip string
+		X int `json:"x"`
+		Y int `json:"y"`
+	} `json:"pos"`
+	Equip string `json:"equip"`
 }
 
 type Squad struct {
-	Name     string
-	Soldiers []*Soldier
+	Name     string     `json:"name"`
+	Soldiers []*Soldier `json:"soldiers"`
 }
 
 func ReadSave(filename string) (*Save, error) {
