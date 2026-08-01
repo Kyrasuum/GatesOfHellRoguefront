@@ -1,18 +1,13 @@
 package stage
 
 import (
-	"archive/zip"
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"roguefront/pkg/app"
@@ -49,11 +44,8 @@ type MainMenu struct {
 	levels     string   `json:"-"`
 	levlist    []string `json:"-"`
 	resources  string   `json:"-"`
-	reslist    []int    `json:"-"`
 
-	modname []string `json:"-"`
-	modlist []string `json:"-"`
-	chkmods []bool   `json:"-"`
+	modlist []res.Mod `json:"-"`
 
 	profilemode  bool         `json:"-"`
 	gamemode     bool         `json:"-"`
@@ -94,10 +86,7 @@ func (s *MainMenu) Init() error {
 	s.levels = "#01#Easy;#02#Normal;#03#Hard;#04#Heroic"
 	s.levlist = []string{"easy", "normal", "hard", "heroic"}
 	s.resources = "#01#Low;#02#Standard;#03#High"
-	s.reslist = []int{1, 2, 3}
-	s.modname = []string{}
-	s.modlist = []string{}
-	s.chkmods = []bool{}
+	s.modlist = []res.Mod{}
 
 	s.profilemode = false
 	s.gamemode = false
@@ -203,7 +192,6 @@ func (s *MainMenu) Render() {
 
 	// new game panel
 	if s.panel {
-
 		gui.SetState(gui.STATE_NORMAL)
 		gui.Panel(rl.NewRectangle((width-500)/2, (height-400)/2, 500, 400), "New Game")
 		cnbtn := gui.Button(rl.NewRectangle((width-500)/2+478, (height-400)/2+2, 20, 20), "X")
@@ -219,22 +207,36 @@ func (s *MainMenu) Render() {
 
 		gui.ScrollPanel(rl.NewRectangle((width-500)/2+10, (height-400)/2+187, 480, 175), "", rl.NewRectangle(0, 0, 465, float32(len(s.modlist)*25)), &s.scroll, &s.view)
 		rl.BeginScissorMode(int32(s.view.X), int32(s.view.Y), int32(s.view.Width), int32(s.view.Height))
-		for i, mod := range s.modname {
-			gui.CheckBox(rl.NewRectangle((width-500)/2+20, (height-400)/2+192+float32(25*i+5)+s.scroll.Y, 10, 10), mod, &s.chkmods[i])
+		for i, mod := range s.modlist {
+			if gui.CheckBox(rl.NewRectangle((width-500)/2+20, (height-400)/2+192+float32(25*i+5)+s.scroll.Y, 10, 10), mod.Name, &s.modlist[i].Enabled) {
+				s.UpdateNations()
+				s.UpdateLevels()
+				s.UpdateResources()
+			}
 		}
 		rl.EndScissorMode()
 
 		gui.Line(rl.NewRectangle((width-500)/2+10, (height-400)/2+167, 480, 20), "Mods")
 		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+147, 80, 20), "Airborne:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+152, 10, 10), "  ", &s.Airborne)
+		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+152, 10, 10), "  ", &s.Airborne) {
+			s.UpdateNations()
+		}
 		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+122, 80, 20), "Scorched Earth:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+127, 10, 10), "  ", &s.Scorched)
+		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+127, 10, 10), "  ", &s.Scorched) {
+			s.UpdateNations()
+		}
 		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+97, 80, 20), "Talvisota:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+102, 10, 10), "  ", &s.Talvisota)
+		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+102, 10, 10), "  ", &s.Talvisota) {
+			s.UpdateNations()
+		}
 		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+72, 80, 20), "Liberation:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+77, 10, 10), "  ", &s.Liberation)
+		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+77, 10, 10), "  ", &s.Liberation) {
+			s.UpdateNations()
+		}
 		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+47, 80, 20), "Finest Hour:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+52, 10, 10), "  ", &s.Finest)
+		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+52, 10, 10), "  ", &s.Finest) {
+			s.UpdateNations()
+		}
 		gui.Line(rl.NewRectangle((width-500)/2+360, (height-400)/2+27, 90, 20), "DLC / Maps")
 
 		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+147, 80, 20), "Fog of War:")
@@ -282,281 +284,6 @@ func (s *MainMenu) OnRemove() {
 	}
 }
 
-func (s *MainMenu) UpdateNations() {
-	s.nations = "#01#Germany;#02#Soviets"
-	s.nationlist = []string{"ger", "sov"}
-
-	if s.Finest {
-		s.nationlist = append(s.nationlist, "eng")
-		s.nations = s.nations + fmt.Sprintf(";#0%d#Commonwealth (GOH)", len(s.nationlist))
-	}
-	if s.Liberation {
-		s.nationlist = append(s.nationlist, "usa")
-		s.nations = s.nations + fmt.Sprintf(";#0%d#United States (GOH)", len(s.nationlist))
-	}
-	if s.Talvisota {
-		s.nationlist = append(s.nationlist, "fin")
-		s.nations = s.nations + fmt.Sprintf(";#0%d#Finland", len(s.nationlist))
-	}
-	if s.Nation >= int32(len(s.nationlist)) {
-		s.Nation = 0
-	}
-	if s.Enemy >= int32(len(s.nationlist)) {
-		s.Enemy = 0
-	}
-
-	LoadNations := func(path string) {
-		r, err := zip.OpenReader(path)
-		if err != nil {
-			return
-		}
-		defer r.Close()
-
-		for _, f := range r.File {
-			switch {
-			case strings.HasPrefix(f.Name, "set/multiplayer/armies/"):
-				if strings.HasSuffix(f.Name, ".set") {
-					split := strings.Split(f.Name, "/")
-					name := split[len(split)-1]
-					name = name[:len(name)-4]
-					if !slices.Contains(s.nationlist[:], name) {
-						s.nationlist = append(s.nationlist, name)
-						s.nations = s.nations + fmt.Sprintf(";#0%d#"+name, len(s.nationlist))
-					}
-				}
-			}
-		}
-	}
-
-	for i, chk := range s.chkmods {
-		if chk {
-			paks, err := os.ReadDir(s.Workshop + "/" + s.modlist[i] + "/resource")
-			if err != nil {
-				log.Printf("%+v", err)
-				continue
-			}
-			for _, pak := range paks {
-				if !pak.IsDir() && strings.HasSuffix(pak.Name(), ".pak") {
-					LoadNations(s.Workshop + "/" + s.modlist[i] + "/resource/" + pak.Name())
-				}
-			}
-
-			// load loose files
-			entries, err := os.ReadDir(s.Workshop + "/" + s.modlist[i])
-			if err != nil {
-				log.Printf("%+v", err)
-				return
-			}
-			for _, entry := range entries {
-				name := entry.Name()
-				if !entry.IsDir() && strings.HasSuffix(name, ".set") {
-					if !slices.Contains(s.nationlist[:], name[:3]) {
-						s.nationlist = append(s.nationlist, name[:3])
-						s.nations = s.nations + fmt.Sprintf(";#0%d#"+name[:3], len(s.nationlist))
-					}
-				}
-			}
-		}
-	}
-}
-
-func (s *MainMenu) UpdateLevels() {
-	ReadLevel := func(data []byte) {
-		scanner := bufio.NewScanner(bytes.NewReader(data))
-
-		levels := ""
-		levlist := []string{}
-		for scanner.Scan() {
-			line := scanner.Text()
-
-			if line == "" {
-				continue
-			}
-
-			fmt.Sprintf("%s\n", line)
-			switch {
-			case strings.HasPrefix(line, "{GameModes"):
-			case strings.HasPrefix(line, "{ResupplyCost"):
-			case strings.HasPrefix(line, "{"):
-				levels = levels + fmt.Sprintf("%s;", strings.TrimSpace(line)[1:])
-				levlist = append(levlist, strings.TrimSpace(line)[1:])
-			}
-		}
-		if len(levels) > 0 {
-			levels = levels[:len(levels)-1]
-		}
-		s.levels = levels
-		s.levlist = levlist
-	}
-
-	UpdateLevel := func(path string) {
-		r, err := zip.OpenReader(path)
-		if err != nil {
-			return
-		}
-		defer r.Close()
-
-		for _, f := range r.File {
-			switch f.Name {
-			case "set/dynamic_campaign.set":
-				rc, err := f.Open()
-				if err != nil {
-					return
-				}
-
-				data, err := io.ReadAll(rc)
-				rc.Close()
-				if err != nil {
-					return
-				}
-
-				ReadLevel(data)
-			}
-		}
-	}
-	UpdateLevel(s.Game + "/resource/gamelogic.pak")
-	for i, chk := range s.chkmods {
-		if chk {
-			UpdateLevel(s.Workshop + "/" + s.modlist[i] + "/resource/gamelogic.pak")
-			data, err := os.ReadFile(s.Workshop + "/" + s.modlist[i] + "/resource/set/dynamic_campaign.set")
-			if err == nil {
-				ReadLevel(data)
-			}
-		}
-	}
-
-	if s.Difficulty >= int32(len(s.levlist)) {
-		s.Difficulty = 0
-	}
-}
-
-func (s *MainMenu) UpdateResources() {
-	ReadResource := func(data []byte) {
-		scanner := bufio.NewScanner(bytes.NewReader(data))
-
-		for scanner.Scan() {
-			line := scanner.Text()
-
-			if line == "" {
-				continue
-			}
-
-			switch {
-			//find resources section
-			case strings.HasPrefix(line, "\t{Resources"):
-				resources := ""
-				reslist := []int{}
-				for scanner.Scan() {
-					line := scanner.Text()
-
-					if line == "" {
-						continue
-					}
-
-					switch {
-					case strings.HasPrefix(line, "\t\t{"):
-						resources = resources + fmt.Sprintf("%s;", strings.TrimSpace(line)[1:])
-						reslist = append(reslist, len(resources))
-					case strings.HasPrefix(line, "\t}"):
-						if len(resources) > 0 {
-							resources = resources[:len(resources)-1]
-						}
-						s.resources = resources
-						s.reslist = reslist
-						return
-					}
-				}
-			}
-		}
-	}
-
-	UpdateResource := func(path string) {
-		r, err := zip.OpenReader(path)
-		if err != nil {
-			return
-		}
-		defer r.Close()
-
-		for _, f := range r.File {
-			switch f.Name {
-			case "set/dynamic_campaign.set":
-				rc, err := f.Open()
-				if err != nil {
-					return
-				}
-
-				data, err := io.ReadAll(rc)
-				rc.Close()
-				if err != nil {
-					return
-				}
-
-				ReadResource(data)
-			}
-		}
-	}
-	UpdateResource(s.Game + "/resource/gamelogic.pak")
-	for i, chk := range s.chkmods {
-		if chk {
-			UpdateResource(s.Workshop + "/" + s.modlist[i] + "/resource/gamelogic.pak")
-			data, err := os.ReadFile(s.Workshop + "/" + s.modlist[i] + "/resource/set/dynamic_campaign.set")
-			if err == nil {
-				ReadResource(data)
-			}
-		}
-	}
-
-	if s.Reslvl >= int32(len(s.reslist)) {
-		s.Reslvl = 0
-	}
-}
-
-func (s *MainMenu) UpdateMods() {
-	if len(s.modlist) > 0 {
-		return
-	}
-
-	entries, err := os.ReadDir(s.Workshop)
-	if err != nil {
-		log.Printf("%+v", err)
-		return
-	}
-	s.modname = []string{}
-	s.modlist = []string{}
-	s.chkmods = []bool{}
-
-	for _, entry := range entries {
-		// Filter out standard files, keeping only folders for mods
-		if entry.IsDir() {
-			data, err := os.ReadFile(s.Workshop + "/" + entry.Name() + "/mod.info")
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					continue
-				}
-				log.Printf("%+v", err)
-				continue
-			}
-
-			scanner := bufio.NewScanner(bytes.NewReader(data))
-			for scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-
-				if line == "" {
-					continue
-				}
-
-				switch {
-				case strings.HasPrefix(line, "{name"):
-					s.modlist = append(s.modlist, entry.Name())
-					s.chkmods = append(s.chkmods, false)
-					s.modname = append(s.modname, res.ParseString(line))
-					break
-				}
-			}
-		}
-	}
-}
-
 func (s *MainMenu) NewGame() {
 	if s == nil {
 		return
@@ -580,10 +307,10 @@ func (s *MainMenu) NewGame() {
 	game.State.Status.EnemyArmy = s.nationlist[s.Enemy]
 	game.State.Status.Difficulty = strings.ToLower(s.levlist[s.Difficulty])
 	game.State.Status.Resources = int(s.Reslvl)
-	for i, chk := range s.chkmods {
-		if chk {
-			game.Mods = append(game.Mods, s.modlist[i])
-			game.State.Status.Mods = append(game.State.Status.Mods, fmt.Sprintf("%s:0", s.modlist[i]))
+	for _, mod := range s.modlist {
+		if mod.Enabled {
+			game.Mods = append(game.Mods, mod)
+			game.State.Status.Mods = append(game.State.Status.Mods, fmt.Sprintf("%s:0", mod.Id))
 		}
 	}
 	if s.Fow {
@@ -716,4 +443,95 @@ func (s *MainMenu) DetectSettings() error {
 	}
 
 	return nil
+}
+
+func (s *MainMenu) UpdateNations() {
+	s.nations = ""
+	s.nationlist = []string{}
+
+	namelist := map[string]string{
+		"ger": "Germany",
+		"rus": "Soviet Union",
+		"fin": "Finland",
+		"usa": "United States (GoH)",
+		"eng": "Commonwealth (GoH)",
+		"aus": "Austria",
+		"fra": "France",
+		"pol": "Poland",
+		"hun": "Hungary",
+		"jap": "Japan",
+	}
+
+	nations := res.FindNations(s.Game, s.modlist)
+	for _, nation := range nations {
+		if nation == "eng" && !s.Finest {
+			continue
+		}
+		if nation == "usa" && !s.Liberation {
+			continue
+		}
+		if nation == "fin" && !s.Talvisota {
+			continue
+		}
+		s.nationlist = append(s.nationlist, nation)
+		name := nation
+		if n, ok := namelist[nation]; ok {
+			name = n
+		}
+		s.nations = s.nations + fmt.Sprintf("#%02d#%s;", len(s.nationlist), name)
+	}
+
+	if len(s.nations) > 0 {
+		s.nations = s.nations[:len(s.nations)-1]
+	}
+	if s.Nation >= int32(len(s.nationlist)) {
+		s.Nation = 0
+	}
+	if s.Enemy >= int32(len(s.nationlist)) {
+		s.Enemy = 0
+	}
+}
+
+func (s *MainMenu) UpdateLevels() {
+	s.levels = ""
+	s.levlist = []string{}
+
+	levels := res.FindLevels(s.Game, s.modlist)
+	for _, level := range levels {
+		s.levlist = append(s.levlist, level)
+		s.levels = s.levels + fmt.Sprintf("#%02d#%s;", len(s.levlist), level)
+	}
+
+	if len(s.levels) > 0 {
+		s.levels = s.levels[:len(s.levels)-1]
+	}
+	if s.Difficulty >= int32(len(s.levlist)) {
+		s.Difficulty = 0
+	}
+}
+
+func (s *MainMenu) UpdateResources() {
+	s.resources = ""
+
+	resources := res.FindResources(s.Game, s.modlist)
+	for i, level := range resources {
+		s.resources = s.resources + fmt.Sprintf("#%02d#%s;", i+1, level)
+	}
+
+	if len(s.resources) > 0 {
+		s.resources = s.resources[:len(s.resources)-1]
+	}
+	if s.Reslvl >= int32(len(resources)) {
+		s.Reslvl = 0
+	}
+}
+
+func (s *MainMenu) UpdateMods() (err error) {
+	if len(s.modlist) > 0 {
+		return nil
+	}
+
+	s.modlist, err = res.FindMods(s.Workshop)
+
+	return err
 }

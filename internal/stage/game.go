@@ -1,20 +1,15 @@
 package stage
 
 import (
-	"archive/zip"
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"maps"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"roguefront/pkg/app"
@@ -34,7 +29,7 @@ type Game struct {
 	Workshop string `json:"workshop"`
 
 	Maps    map[string][]string `json:"maps"`
-	Mods    []string            `json:"mods"`
+	Mods    []res.Mod           `json:"mods"`
 	Nations []string            `json:"nations"`
 
 	State res.Save `json:"state"`
@@ -58,7 +53,7 @@ func (g *Game) Init() error {
 	g.paused = false
 
 	g.Maps = map[string][]string{}
-	g.Mods = []string{}
+	g.Mods = []res.Mod{}
 	g.Nations = []string{}
 
 	g.State = res.Save{
@@ -202,67 +197,7 @@ func (g *Game) Populate() error {
 }
 
 func (g *Game) PopulateMaps() {
-	ReadMaps := func(data []byte) {
-		scanner := bufio.NewScanner(bytes.NewReader(data))
-
-		region := ""
-		g.Maps = map[string][]string{}
-		for scanner.Scan() {
-			line := scanner.Text()
-
-			if line == "" {
-				continue
-			}
-
-			switch {
-			//find resources section
-			case strings.HasPrefix(line, "\t\t\t{"):
-				if region != "" {
-					g.Maps[region] = append(g.Maps[region], strings.Split(strings.TrimSpace(line)[2:], "\"")[0])
-				}
-			case strings.HasPrefix(line, "\t{"):
-				region = strings.TrimSpace(line)[1:]
-				g.Maps[region] = []string{}
-			case strings.HasPrefix(line, "}"):
-				return
-			}
-		}
-	}
-
-	UpdateMaps := func(path string) {
-		r, err := zip.OpenReader(path)
-		if err != nil {
-			return
-		}
-		defer r.Close()
-
-		for _, f := range r.File {
-			switch f.Name {
-			case "set/dynamic_campaign/map_points.set":
-				rc, err := f.Open()
-				if err != nil {
-					return
-				}
-
-				data, err := io.ReadAll(rc)
-				rc.Close()
-				if err != nil {
-					return
-				}
-
-				ReadMaps(data)
-			}
-		}
-	}
-
-	UpdateMaps(g.Game + "/resource/gamelogic.pak")
-	for _, mod := range g.Mods {
-		UpdateMaps(g.Workshop + "/" + mod + "/resource/gamelogic.pak")
-		data, err := os.ReadFile(g.Workshop + "/" + mod + "/resource/set/dynamic_campaign/map_points.set")
-		if err == nil {
-			ReadMaps(data)
-		}
-	}
+	g.Maps = res.FindMaps(g.Game, g.Mods)
 }
 
 func (g *Game) PopulateUnits() {}
