@@ -17,9 +17,9 @@ import (
 var ()
 
 type Game struct {
-	profile string
-	game    string
-	mods    string
+	profile  string
+	game     string
+	workshop string
 
 	state res.Save
 
@@ -33,6 +33,7 @@ func (g *Game) Init() error {
 	}
 
 	g.paused = false
+
 	g.state = res.Save{
 		Campaign: &res.Campaign{
 			Soldiers:    []*res.Soldier{},
@@ -177,7 +178,7 @@ func (g *Game) RollEnemy() {
 func (g *Game) SaveGame() {
 	g.state.Status.Seed = int64(rand.Int32())
 	g.state.Status.Timestamp = time.Now().Unix()
-	g.state.Write()
+	g.state.Write(g.profile)
 }
 
 func (g *Game) LoadGame() {}

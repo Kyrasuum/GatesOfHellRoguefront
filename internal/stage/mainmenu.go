@@ -1,14 +1,20 @@
 package stage
 
 import (
+	"archive/zip"
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"roguefront/pkg/app"
+	"roguefront/res"
 
 	"github.com/sqweek/dialog"
 
@@ -19,9 +25,9 @@ import (
 var ()
 
 type MainMenu struct {
-	Profile string `json:"profile"`
-	Game    string `json:"game"`
-	Mods    string `json:"mods"`
+	Profile  string `json:"profile"`
+	Game     string `json:"game"`
+	Workshop string `json:"workshop"`
 
 	Name       string `json:"name"`
 	Nation     int32  `json:"nation"`
@@ -43,6 +49,7 @@ type MainMenu struct {
 	resources  string   `json:"-"`
 	reslist    []int    `json:"-"`
 
+	modname []string `json:"-"`
 	modlist []string `json:"-"`
 	chkmods []bool   `json:"-"`
 
@@ -62,7 +69,7 @@ func (s *MainMenu) Init() error {
 
 	s.Profile = ""
 	s.Game = ""
-	s.Mods = ""
+	s.Workshop = ""
 
 	s.Name = "New Campaign"
 	s.Nation = 0
@@ -83,6 +90,7 @@ func (s *MainMenu) Init() error {
 	s.levlist = []string{"easy", "normal", "hard", "heroic"}
 	s.resources = "#01#Low;#02#Standard;#03#High"
 	s.reslist = []int{1, 2, 3}
+	s.modname = []string{}
 	s.modlist = []string{}
 	s.chkmods = []bool{}
 
@@ -124,6 +132,9 @@ func (s *MainMenu) Render() {
 	if nwbtn {
 		s.panel = true
 		s.UpdateMods()
+		s.UpdateNations()
+		s.UpdateLevels()
+		s.UpdateResources()
 	}
 	ldbtn := gui.Button(rl.NewRectangle(0, height-80, 100, 40), "Load Game")
 	if ldbtn {
@@ -146,7 +157,7 @@ func (s *MainMenu) Render() {
 	prfile := gui.Button(rl.NewRectangle(width-22, height-95, 20, 20), "...")
 	if prfile {
 		file, err := dialog.Directory().
-			Title("Select User Profile Path for Call to Arms Gates of Hell Ostfront").Browse()
+			Title("Select User Profile Path for Call to Arms Gates of Hell Ostfront (Documents\\My Games\\gates of hell\\profiles\\#######)").Browse()
 		if err == nil {
 			s.Profile = file
 		}
@@ -162,21 +173,18 @@ func (s *MainMenu) Render() {
 		}
 	}
 	gui.Label(rl.NewRectangle(105, height-45, 100, 20), "Mods Directory:")
-	gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Mods, 16, true)
+	gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Workshop, 16, true)
 	mdfile := gui.Button(rl.NewRectangle(width-22, height-45, 20, 20), "...")
 	if mdfile {
 		file, err := dialog.Directory().
 			Title("Select Mods Directory for Call to Arms Gates of Hell Ostfront").Browse()
 		if err == nil {
-			s.Mods = file
+			s.Workshop = file
 		}
 	}
 
 	// new game panel
 	if s.panel {
-		s.UpdateNations()
-		s.UpdateLevels()
-		s.UpdateResources()
 
 		gui.SetState(gui.STATE_NORMAL)
 		gui.Panel(rl.NewRectangle((width-500)/2, (height-400)/2, 500, 400), "New Game")
@@ -193,8 +201,8 @@ func (s *MainMenu) Render() {
 
 		gui.ScrollPanel(rl.NewRectangle((width-500)/2+10, (height-400)/2+187, 480, 175), "", rl.NewRectangle(0, 0, 465, float32(len(s.modlist)*25)), &s.scroll, &s.view)
 		rl.BeginScissorMode(int32(s.view.X), int32(s.view.Y), int32(s.view.Width), int32(s.view.Height))
-		for i, mod := range s.modlist {
-			gui.Label(rl.NewRectangle((width-500)/2+20, (height-400)/2+187+float32(25*i+5)+s.scroll.Y, 80, 20), fmt.Sprintf("%s %d", mod, i))
+		for i, mod := range s.modname {
+			gui.CheckBox(rl.NewRectangle((width-500)/2+20, (height-400)/2+192+float32(25*i+5)+s.scroll.Y, 10, 10), mod, &s.chkmods[i])
 		}
 		rl.EndScissorMode()
 
@@ -281,7 +289,69 @@ func (s *MainMenu) UpdateNations() {
 }
 
 func (s *MainMenu) UpdateLevels() {
-	//TODO: go through mods for modded levels
+	ReadLevel := func(data []byte) {
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+
+		levels := ""
+		levlist := []string{}
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if line == "" {
+				continue
+			}
+
+			fmt.Sprintf("%s\n", line)
+			switch {
+			case strings.HasPrefix(line, "{GameModes"):
+			case strings.HasPrefix(line, "{ResupplyCost"):
+			case strings.HasPrefix(line, "{"):
+				levels = levels + fmt.Sprintf("%s;", strings.TrimSpace(line)[1:])
+				levlist = append(levlist, strings.TrimSpace(line)[1:])
+			}
+		}
+		if len(levels) > 0 {
+			levels = levels[:len(levels)-1]
+		}
+		s.levels = levels
+		s.levlist = levlist
+	}
+
+	UpdateLevel := func(path string) {
+		r, err := zip.OpenReader(path)
+		if err != nil {
+			return
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			switch f.Name {
+			case "set/dynamic_campaign.set":
+				rc, err := f.Open()
+				if err != nil {
+					return
+				}
+
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					return
+				}
+
+				ReadLevel(data)
+			}
+		}
+	}
+	UpdateLevel(s.Game + "/resource/gamelogic.pak")
+	for i, chk := range s.chkmods {
+		if chk {
+			UpdateLevel(s.Workshop + "/" + s.modlist[i] + "/resource/gamelogic.pak")
+			data, err := os.ReadFile(s.Workshop + "/" + s.modlist[i] + "/resource/set/dynamic_campaign.set")
+			if err == nil {
+				ReadLevel(data)
+			}
+		}
+	}
 
 	if s.Difficulty >= int32(len(s.levlist)) {
 		s.Difficulty = 0
@@ -289,7 +359,80 @@ func (s *MainMenu) UpdateLevels() {
 }
 
 func (s *MainMenu) UpdateResources() {
-	//TODO: go through mods for modded resources
+	ReadResource := func(data []byte) {
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if line == "" {
+				continue
+			}
+
+			switch {
+			//find resources section
+			case strings.HasPrefix(line, "\t{Resources"):
+				resources := ""
+				reslist := []int{}
+				for scanner.Scan() {
+					line := scanner.Text()
+
+					if line == "" {
+						continue
+					}
+
+					switch {
+					case strings.HasPrefix(line, "\t\t{"):
+						resources = resources + fmt.Sprintf("%s;", strings.TrimSpace(line)[1:])
+						reslist = append(reslist, len(resources))
+					case strings.HasPrefix(line, "\t}"):
+						if len(resources) > 0 {
+							resources = resources[:len(resources)-1]
+						}
+						s.resources = resources
+						s.reslist = reslist
+						return
+					}
+				}
+			}
+		}
+	}
+
+	UpdateResource := func(path string) {
+		r, err := zip.OpenReader(path)
+		if err != nil {
+			return
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			switch f.Name {
+			case "set/dynamic_campaign.set":
+				rc, err := f.Open()
+				if err != nil {
+					return
+				}
+
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					return
+				}
+
+				ReadResource(data)
+			}
+		}
+	}
+	UpdateResource(s.Game + "/resource/gamelogic.pak")
+	for i, chk := range s.chkmods {
+		if chk {
+			UpdateResource(s.Workshop + "/" + s.modlist[i] + "/resource/gamelogic.pak")
+			data, err := os.ReadFile(s.Workshop + "/" + s.modlist[i] + "/resource/set/dynamic_campaign.set")
+			if err == nil {
+				ReadResource(data)
+			}
+		}
+	}
 
 	if s.Reslvl >= int32(len(s.reslist)) {
 		s.Reslvl = 0
@@ -297,7 +440,49 @@ func (s *MainMenu) UpdateResources() {
 }
 
 func (s *MainMenu) UpdateMods() {
-	//TODO: go through mod directory for all mods
+	if len(s.modlist) > 0 {
+		return
+	}
+
+	entries, err := os.ReadDir(s.Workshop)
+	if err != nil {
+		log.Printf("%+v", err)
+		return
+	}
+	s.modname = []string{}
+	s.modlist = []string{}
+	s.chkmods = []bool{}
+
+	for _, entry := range entries {
+		// Filter out standard files, keeping only folders for mods
+		if entry.IsDir() {
+			data, err := os.ReadFile(s.Workshop + "/" + entry.Name() + "/mod.info")
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				log.Printf("%+v", err)
+				continue
+			}
+
+			scanner := bufio.NewScanner(bytes.NewReader(data))
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+
+				if line == "" {
+					continue
+				}
+
+				switch {
+				case strings.HasPrefix(line, "{name"):
+					s.modlist = append(s.modlist, entry.Name())
+					s.chkmods = append(s.chkmods, false)
+					s.modname = append(s.modname, res.ParseString(line))
+					break
+				}
+			}
+		}
+	}
 }
 
 func (s *MainMenu) NewGame() {
@@ -306,9 +491,9 @@ func (s *MainMenu) NewGame() {
 	}
 
 	game := Game{
-		profile: s.Profile,
-		game:    s.Game,
-		mods:    s.Mods,
+		profile:  s.Profile,
+		game:     s.Game,
+		workshop: s.Workshop,
 	}
 	err := game.Init()
 	game.state.Status.Name = s.Name
@@ -316,6 +501,11 @@ func (s *MainMenu) NewGame() {
 	game.state.Status.EnemyArmy = s.nationlist[s.Enemy]
 	game.state.Status.Difficulty = s.levlist[s.Difficulty]
 	game.state.Status.Resources = s.reslist[s.Reslvl]
+	for i, chk := range s.chkmods {
+		if chk {
+			game.state.Status.Mods = append(game.state.Status.Mods, fmt.Sprintf("%s:0", s.modlist[i]))
+		}
+	}
 	if s.Fow {
 		game.state.Status.FogOfWar = "fog_realistic"
 	} else {

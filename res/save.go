@@ -119,8 +119,8 @@ func ReadSave(filename string) (*Save, error) {
 	return s, nil
 }
 
-func (s *Save) Write() error {
-	file, err := os.Create(strcase.ToLowerCamel(s.Status.Name) + ".sav")
+func (s *Save) Write(path string) error {
+	file, err := os.Create(path + "/" + strcase.ToLowerCamel(s.Status.Name) + ".sav")
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (s *Status) Bytes() []byte {
 
 	fmt.Fprintf(&w, "\t{mods\n")
 	for _, mod := range s.Mods {
-		fmt.Fprintf(&w, "\t\t{\"%s\"}\n", mod)
+		fmt.Fprintf(&w, "\t\t\"%s\"\n", mod)
 	}
 	fmt.Fprintf(&w, "\t}\n")
 	fmt.Fprintf(&w, "\t{timestamp %d}\n", s.Timestamp)
@@ -312,51 +312,51 @@ func ParseStatus(data []byte) (*Status, error) {
 
 		switch {
 		case strings.HasPrefix(line, "{mods"):
-			if err := parseMods(scanner, s); err != nil {
+			if err := ParseMods(scanner, s); err != nil {
 				return nil, err
 			}
 
 		case strings.HasPrefix(line, "{timestamp"):
-			s.Timestamp = parseInt64(line)
+			s.Timestamp = ParseInt64(line)
 
 		case strings.HasPrefix(line, "{seed"):
-			s.Seed = parseInt64(line)
+			s.Seed = ParseInt64(line)
 
 		case strings.HasPrefix(line, "{name"):
-			s.Name = parseString(line)
+			s.Name = ParseString(line)
 
 		case strings.HasPrefix(line, "{army"):
-			s.Army = parseString(line)
+			s.Army = ParseString(line)
 
 		case strings.HasPrefix(line, "{enemyArmy"):
-			s.EnemyArmy = parseString(line)
+			s.EnemyArmy = ParseString(line)
 
 		case strings.HasPrefix(line, "{difficulty"):
-			s.Difficulty = parseString(line)
+			s.Difficulty = ParseString(line)
 
 		case strings.HasPrefix(line, "{resources"):
-			s.Resources = int(parseInt64(line))
+			s.Resources = int(ParseInt64(line))
 
 		case strings.HasPrefix(line, "{fogofwar"):
-			s.FogOfWar = parseString(line)
+			s.FogOfWar = ParseString(line)
 
 		case strings.HasPrefix(line, "{region"):
-			s.Region = parseString(line)
+			s.Region = ParseString(line)
 
 		case strings.HasPrefix(line, "{playedGames"):
-			s.PlayedGames = int(parseInt64(line))
+			s.PlayedGames = int(ParseInt64(line))
 
 		case strings.HasPrefix(line, "{wonGames"):
-			s.WonGames = int(parseInt64(line))
+			s.WonGames = int(ParseInt64(line))
 
 		case strings.HasPrefix(line, "{landscape"):
-			s.Landscape = parseString(line)
+			s.Landscape = ParseString(line)
 
 		case strings.HasPrefix(line, "{map"):
-			s.Map = parseString(line)
+			s.Map = ParseString(line)
 
 		case strings.HasPrefix(line, "{risk"):
-			s.Risk = parseString(line)
+			s.Risk = ParseString(line)
 		}
 	}
 
@@ -403,7 +403,7 @@ func ParseSoldier(scanner *bufio.Scanner, line string) (*Soldier, error) {
 		s.Path = strings.Trim(fields[1], "\"")
 	}
 	if len(fields) >= 3 {
-		s.Id = int(parseInt64(strings.Trim(fields[2], "0xc")))
+		s.Id = int(ParseInt64(strings.Trim(fields[2], "0xc")))
 	}
 
 	for scanner.Scan() {
@@ -415,9 +415,9 @@ func ParseSoldier(scanner *bufio.Scanner, line string) (*Soldier, error) {
 
 		switch {
 		case strings.HasPrefix(line, "{MID"):
-			s.Mid = parseString(line)
+			s.Mid = ParseString(line)
 		case strings.HasPrefix(line, "{NameId"):
-			s.Name = parseString(line)
+			s.Name = ParseString(line)
 		case strings.HasPrefix(line, "}"):
 			break
 		}
@@ -443,7 +443,7 @@ func ParseInventory(scanner *bufio.Scanner, line string) (*Inventory, error) {
 	return i, scanner.Err()
 }
 
-func fieldValue(line string) string {
+func FieldValue(line string) string {
 	line = strings.TrimSpace(line)
 	line = strings.TrimPrefix(line, "{")
 
@@ -455,21 +455,21 @@ func fieldValue(line string) string {
 	return strings.TrimSpace(strings.TrimSuffix(parts[1], "}"))
 }
 
-func parseInt64(line string) int64 {
-	n, _ := strconv.ParseInt(fieldValue(line), 10, 64)
+func ParseInt64(line string) int64 {
+	n, _ := strconv.ParseInt(FieldValue(line), 10, 64)
 	return n
 }
 
-func parseFloat(line string) float64 {
-	f, _ := strconv.ParseFloat(fieldValue(line), 64)
+func ParseFloat(line string) float64 {
+	f, _ := strconv.ParseFloat(FieldValue(line), 64)
 	return f
 }
 
-func parseString(line string) string {
-	return strings.Trim(fieldValue(line), "\"")
+func ParseString(line string) string {
+	return strings.Trim(FieldValue(line), "\"")
 }
 
-func parseMods(scanner *bufio.Scanner, s *Status) error {
+func ParseMods(scanner *bufio.Scanner, s *Status) error {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -477,7 +477,7 @@ func parseMods(scanner *bufio.Scanner, s *Status) error {
 			return nil
 		}
 
-		mod := parseString(line)
+		mod := ParseString(line)
 		if mod != "" {
 			s.Mods = append(s.Mods, mod)
 		}
