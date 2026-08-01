@@ -10,7 +10,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"roguefront/pkg/app"
@@ -53,13 +55,16 @@ type MainMenu struct {
 	modlist []string `json:"-"`
 	chkmods []bool   `json:"-"`
 
-	panel       bool         `json:"-"`
-	ddnation    bool         `json:"-"`
-	ddenemy     bool         `json:"-"`
-	ddlevel     bool         `json:"-"`
-	ddresources bool         `json:"-"`
-	scroll      rl.Vector2   `json:"-"`
-	view        rl.Rectangle `json:"-"`
+	profilemode  bool         `json:"-"`
+	gamemode     bool         `json:"-"`
+	workshopmode bool         `json:"-"`
+	panel        bool         `json:"-"`
+	ddnation     bool         `json:"-"`
+	ddenemy      bool         `json:"-"`
+	ddlevel      bool         `json:"-"`
+	ddresources  bool         `json:"-"`
+	scroll       rl.Vector2   `json:"-"`
+	view         rl.Rectangle `json:"-"`
 }
 
 func (s *MainMenu) Init() error {
@@ -94,6 +99,9 @@ func (s *MainMenu) Init() error {
 	s.modlist = []string{}
 	s.chkmods = []bool{}
 
+	s.profilemode = false
+	s.gamemode = false
+	s.workshopmode = false
 	s.panel = false
 	s.ddnation = false
 	s.ddenemy = false
@@ -102,7 +110,11 @@ func (s *MainMenu) Init() error {
 	s.scroll = rl.NewVector2(0, 0)
 	s.view = rl.NewRectangle(0, 0, 0, 0)
 
-	return s.LoadSettings()
+	err := s.LoadSettings()
+	if err != nil {
+		return err
+	}
+	return s.DetectSettings()
 }
 
 func (s *MainMenu) OnResize(w int32, h int32) {
@@ -153,7 +165,9 @@ func (s *MainMenu) Render() {
 	// settings panel
 	gui.Panel(rl.NewRectangle(100, height-120, width-100, 120), "Settings")
 	gui.Label(rl.NewRectangle(105, height-95, 100, 20), "User Profile Path:")
-	gui.TextBox(rl.NewRectangle(205, height-95, width-209, 20), &s.Profile, 16, true)
+	if gui.TextBox(rl.NewRectangle(205, height-95, width-209, 20), &s.Profile, 260, s.profilemode) {
+		s.profilemode = !s.profilemode
+	}
 	prfile := gui.Button(rl.NewRectangle(width-22, height-95, 20, 20), "...")
 	if prfile {
 		file, err := dialog.Directory().
@@ -163,7 +177,9 @@ func (s *MainMenu) Render() {
 		}
 	}
 	gui.Label(rl.NewRectangle(105, height-70, 100, 20), "Game Directory:")
-	gui.TextBox(rl.NewRectangle(205, height-70, width-209, 20), &s.Game, 16, true)
+	if gui.TextBox(rl.NewRectangle(205, height-70, width-209, 20), &s.Game, 260, s.gamemode) {
+		s.gamemode = !s.gamemode
+	}
 	gmfile := gui.Button(rl.NewRectangle(width-22, height-70, 20, 20), "...")
 	if gmfile {
 		file, err := dialog.Directory().
@@ -173,7 +189,9 @@ func (s *MainMenu) Render() {
 		}
 	}
 	gui.Label(rl.NewRectangle(105, height-45, 100, 20), "Mods Directory:")
-	gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Workshop, 16, true)
+	if gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Workshop, 260, s.workshopmode) {
+		s.workshopmode = !s.workshopmode
+	}
 	mdfile := gui.Button(rl.NewRectangle(width-22, height-45, 20, 20), "...")
 	if mdfile {
 		file, err := dialog.Directory().
@@ -193,7 +211,7 @@ func (s *MainMenu) Render() {
 			s.panel = false
 		}
 		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+370, 80, 20), "Campaign Name:")
-		gui.TextBox(rl.NewRectangle((width-500)/2+95, (height-400)/2+370, 285, 20), &s.Name, 16, true)
+		gui.TextBox(rl.NewRectangle((width-500)/2+95, (height-400)/2+370, 285, 20), &s.Name, 260, true)
 		stbtn := gui.Button(rl.NewRectangle((width-500)/2+390, (height-400)/2+370, 100, 20), "Start Game")
 		if stbtn {
 			s.NewGame()
@@ -285,6 +303,62 @@ func (s *MainMenu) UpdateNations() {
 	}
 	if s.Enemy >= int32(len(s.nationlist)) {
 		s.Enemy = 0
+	}
+
+	LoadNations := func(path string) {
+		r, err := zip.OpenReader(path)
+		if err != nil {
+			return
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			switch {
+			case strings.HasPrefix(f.Name, "set/multiplayer/armies/"):
+				if strings.HasSuffix(f.Name, ".set") {
+					split := strings.Split(f.Name, "/")
+					name := split[len(split)-1]
+					name = name[:len(name)-4]
+					if !slices.Contains(s.nationlist[:], name) {
+						fmt.Printf("%+v\n", f.Name)
+						fmt.Printf("%+v\n", name)
+						s.nationlist = append(s.nationlist, name)
+						s.nations = s.nations + fmt.Sprintf(";#0%d#"+name, len(s.nationlist))
+					}
+				}
+			}
+		}
+	}
+
+	for i, chk := range s.chkmods {
+		if chk {
+			paks, err := os.ReadDir(s.Workshop + "/" + s.modlist[i] + "/resource")
+			if err != nil {
+				log.Printf("%+v", err)
+				continue
+			}
+			for _, pak := range paks {
+				if !pak.IsDir() && strings.HasSuffix(pak.Name(), ".pak") {
+					LoadNations(s.Workshop + "/" + s.modlist[i] + "/resource/" + pak.Name())
+				}
+			}
+
+			// load loose files
+			entries, err := os.ReadDir(s.Workshop + "/" + s.modlist[i])
+			if err != nil {
+				log.Printf("%+v", err)
+				return
+			}
+			for _, entry := range entries {
+				name := entry.Name()
+				if !entry.IsDir() && strings.HasSuffix(name, ".set") {
+					if !slices.Contains(s.nationlist[:], name[:3]) {
+						s.nationlist = append(s.nationlist, name[:3])
+						s.nations = s.nations + fmt.Sprintf(";#0%d#"+name[:3], len(s.nationlist))
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -490,43 +564,60 @@ func (s *MainMenu) NewGame() {
 		return
 	}
 
-	game := Game{
-		profile:  s.Profile,
-		game:     s.Game,
-		workshop: s.Workshop,
-	}
+	game := Game{}
 	err := game.Init()
-	game.state.Status.Name = s.Name
-	game.state.Status.Army = s.nationlist[s.Nation]
-	game.state.Status.EnemyArmy = s.nationlist[s.Enemy]
-	game.state.Status.Difficulty = s.levlist[s.Difficulty]
-	game.state.Status.Resources = s.reslist[s.Reslvl]
-	for i, chk := range s.chkmods {
-		if chk {
-			game.state.Status.Mods = append(game.state.Status.Mods, fmt.Sprintf("%s:0", s.modlist[i]))
-		}
-	}
-	if s.Fow {
-		game.state.Status.FogOfWar = "fog_realistic"
-	} else {
-		game.state.Status.FogOfWar = "fog_realistic"
-	}
 	if err != nil {
 		log.Printf("%+v", err)
 		return
 	}
+
+	game.Profile = s.Profile
+	game.Game = s.Game
+	game.Workshop = s.Workshop
+
+	game.Nations = s.nationlist
+
+	game.State.Status.Name = s.Name
+	game.State.Status.Army = s.nationlist[s.Nation]
+	game.State.Status.EnemyArmy = s.nationlist[s.Enemy]
+	game.State.Status.Difficulty = s.levlist[s.Difficulty]
+	game.State.Status.Resources = s.reslist[s.Reslvl]
+	for i, chk := range s.chkmods {
+		if chk {
+			game.Mods = append(game.Mods, s.modlist[i])
+			game.State.Status.Mods = append(game.State.Status.Mods, fmt.Sprintf("%s:0", s.modlist[i]))
+		}
+	}
+	if s.Fow {
+		game.State.Status.FogOfWar = "fog_realistic"
+	} else {
+		game.State.Status.FogOfWar = "fog_off"
+	}
+	game.PopulateMaps()
+	game.PopulateUnits()
+
+	game.RollLandscape()
+	game.RollRegion()
+	game.RollMap()
+	game.RollEnemy()
 
 	s.SaveSettings()
 	app.CurApp.SetStage(&game)
 }
 
 func (s *MainMenu) LoadGame(file string) {
+	if s == nil {
+		return
+	}
 	//TODO: implement loading game logic
 
 	s.SaveSettings()
 }
 
 func (s *MainMenu) LoadSettings() error {
+	if s == nil {
+		return fmt.Errorf("MainMenu is nil")
+	}
 	// Get the absolute path of the running executable
 	ex, err := os.Executable()
 	if err != nil {
@@ -550,6 +641,9 @@ func (s *MainMenu) LoadSettings() error {
 }
 
 func (s *MainMenu) SaveSettings() error {
+	if s == nil {
+		return fmt.Errorf("MainMenu is nil")
+	}
 	// Marshall the settings
 	data, err := json.Marshal(*s)
 	if err != nil {
@@ -567,4 +661,46 @@ func (s *MainMenu) SaveSettings() error {
 
 	// Save the settings file
 	return os.WriteFile(exPath+"/settings.json", data, 0644)
+}
+
+func (s *MainMenu) DetectSettings() error {
+	if s == nil {
+		return fmt.Errorf("MainMenu is nil")
+	}
+
+	if s.Profile == "" {
+		currentUser, err := user.Current()
+		if err == nil {
+			username := strings.Split(currentUser.Username, "\\")[1]
+			path := fmt.Sprintf("C:\\Users\\%s\\Documents\\My Games\\gates of hell\\profiles", username)
+			info, err := os.Stat(path)
+			if err == nil && info.IsDir() {
+				entries, err := os.ReadDir(path)
+				if err == nil {
+					for _, entry := range entries {
+						if entry.IsDir() {
+							s.Profile = path + "\\" + entry.Name()
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if s.Game == "" {
+		info, err := os.Stat("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Call to Arms - Gates of Hell")
+		if err == nil && info.IsDir() {
+			s.Game = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Call to Arms - Gates of Hell"
+		}
+	}
+
+	if s.Workshop == "" {
+		info, err := os.Stat("C:\\Program Files (x86)\\Steam\\steamapps\\workshop\\content\\400750")
+		if err == nil && info.IsDir() {
+			s.Workshop = "C:\\Program Files (x86)\\Steam\\steamapps\\workshop\\content\\400750"
+		}
+	}
+
+	return nil
 }

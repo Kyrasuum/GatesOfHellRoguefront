@@ -156,7 +156,7 @@ func (s *Status) Bytes() []byte {
 	fmt.Fprintf(&w, "{saveinfo\n")
 
 	fmt.Fprintf(&w, "\t{version 9}\n")
-	fmt.Fprintf(&w, "\t{gameVersion \"1.063.0\"}\n")
+	fmt.Fprintf(&w, "\t{gameVersion \"1.065.0\"}\n")
 
 	fmt.Fprintf(&w, "\t{mods\n")
 	for _, mod := range s.Mods {

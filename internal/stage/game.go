@@ -1,9 +1,17 @@
 package stage
 
 import (
+	"archive/zip"
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"log"
+	"maps"
 	"math/rand/v2"
+	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"roguefront/pkg/app"
@@ -17,13 +25,20 @@ import (
 var ()
 
 type Game struct {
-	profile  string
-	game     string
-	workshop string
+	Profile  string
+	Game     string
+	Workshop string
 
-	state res.Save
+	Maps    map[string][]string
+	Mods    []string
+	Nations []string
+
+	State res.Save
 
 	paused bool
+}
+
+func (g *Game) Default() {
 }
 
 // initialize game object
@@ -32,9 +47,17 @@ func (g *Game) Init() error {
 		return fmt.Errorf("Invalid stage")
 	}
 
+	g.Profile = ""
+	g.Game = ""
+	g.Workshop = ""
+
 	g.paused = false
 
-	g.state = res.Save{
+	g.Maps = map[string][]string{}
+	g.Mods = []string{}
+	g.Nations = []string{}
+
+	g.State = res.Save{
 		Campaign: &res.Campaign{
 			Soldiers:    []*res.Soldier{},
 			Inventories: []*res.Inventory{},
@@ -150,9 +173,69 @@ func (g *Game) OnRemove() {
 	}
 }
 
-func (g *Game) PopulateMaps() {}
+func (g *Game) PopulateMaps() {
+	ReadMaps := func(data []byte) {
+		scanner := bufio.NewScanner(bytes.NewReader(data))
 
-func (g *Game) PopulateEnemies() {}
+		region := ""
+		g.Maps = map[string][]string{}
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if line == "" {
+				continue
+			}
+
+			switch {
+			//find resources section
+			case strings.HasPrefix(line, "\t\t\t{"):
+				if region != "" {
+					g.Maps[region] = append(g.Maps[region], strings.Split(strings.TrimSpace(line)[2:], "\"")[0])
+				}
+			case strings.HasPrefix(line, "\t{"):
+				region = strings.TrimSpace(line)[1:]
+				g.Maps[region] = []string{}
+			case strings.HasPrefix(line, "}"):
+				return
+			}
+		}
+	}
+
+	UpdateMaps := func(path string) {
+		r, err := zip.OpenReader(path)
+		if err != nil {
+			return
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			switch f.Name {
+			case "set/dynamic_campaign/map_points.set":
+				rc, err := f.Open()
+				if err != nil {
+					return
+				}
+
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					return
+				}
+
+				ReadMaps(data)
+			}
+		}
+	}
+
+	UpdateMaps(g.Game + "/resource/gamelogic.pak")
+	for _, mod := range g.Mods {
+		UpdateMaps(g.Workshop + "/" + mod + "/resource/gamelogic.pak")
+		data, err := os.ReadFile(g.Workshop + "/" + mod + "/resource/set/dynamic_campaign/map_points.set")
+		if err == nil {
+			ReadMaps(data)
+		}
+	}
+}
 
 func (g *Game) PopulateUnits() {}
 
@@ -163,22 +246,27 @@ func (g *Game) RollLandscape() {
 		"winter",
 		"desert",
 	}
-	g.state.Status.Landscape = landscapes[rand.IntN(len(landscapes))]
+	g.State.Status.Landscape = landscapes[rand.IntN(len(landscapes))]
 }
 
 func (g *Game) RollRegion() {
+	regions := slices.Collect(maps.Keys(g.Maps))
+	g.State.Status.Region = regions[rand.IntN(len(regions))]
 }
 
 func (g *Game) RollMap() {
+	maps := g.Maps[g.State.Status.Region]
+	g.State.Status.Map = maps[rand.IntN(len(maps))]
 }
 
 func (g *Game) RollEnemy() {
+	g.State.Status.EnemyArmy = g.Nations[rand.IntN(len(g.Nations))]
 }
 
 func (g *Game) SaveGame() {
-	g.state.Status.Seed = int64(rand.Int32())
-	g.state.Status.Timestamp = time.Now().Unix()
-	g.state.Write(g.profile)
+	g.State.Status.Seed = int64(rand.Int32())
+	g.State.Status.Timestamp = time.Now().Unix()
+	g.State.Write(g.Profile)
 }
 
 func (g *Game) LoadGame() {}
