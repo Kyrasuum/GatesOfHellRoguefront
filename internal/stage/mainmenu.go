@@ -578,8 +578,8 @@ func (s *MainMenu) NewGame() {
 	game.State.Status.Name = s.Name
 	game.State.Status.Army = s.nationlist[s.Nation]
 	game.State.Status.EnemyArmy = s.nationlist[s.Enemy]
-	game.State.Status.Difficulty = s.levlist[s.Difficulty]
-	game.State.Status.Resources = s.reslist[s.Reslvl]
+	game.State.Status.Difficulty = strings.ToLower(s.levlist[s.Difficulty])
+	game.State.Status.Resources = int(s.Reslvl)
 	for i, chk := range s.chkmods {
 		if chk {
 			game.Mods = append(game.Mods, s.modlist[i])
@@ -691,7 +691,7 @@ func (s *MainMenu) DetectSettings() error {
 					if err == nil {
 						for _, entry := range entries {
 							if entry.IsDir() {
-								s.Profile = path + "\\" + entry.Name()
+								s.Profile = path + "\\" + entry.Name() + "\\campaign"
 								break
 							}
 						}

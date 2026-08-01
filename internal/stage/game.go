@@ -12,13 +12,15 @@ import (
 	"maps"
 	"math/rand/v2"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"roguefront/pkg/app"
-
 	"roguefront/res"
+
+	"github.com/iancoleman/strcase"
 
 	gui "github.com/gen2brain/raylib-go/raygui"
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -123,6 +125,7 @@ func (g *Game) Render() {
 		svbtn := gui.Button(rl.NewRectangle((width-300)/2+25, (height-200)/2+35, 250, 30), "Save")
 		if svbtn {
 			g.SaveGame()
+			g.paused = false
 		}
 		exbtn1 := gui.Button(rl.NewRectangle((width-300)/2+25, (height-200)/2+75, 250, 30), "Exit to Main Menu")
 		if exbtn1 {
@@ -275,6 +278,7 @@ func (g *Game) ReRoll() {
 	g.RollRegion()
 	g.RollMap()
 	g.RollEnemy()
+	g.RollRisk()
 }
 
 func (g *Game) RollLandscape() {
@@ -300,10 +304,51 @@ func (g *Game) RollEnemy() {
 	g.State.Status.EnemyArmy = g.Nations[rand.IntN(len(g.Nations))]
 }
 
-func (g *Game) SaveGame() {
+func (g *Game) RollRisk() {
+	risks := []string{
+		"low",
+		"standard",
+		"high",
+	}
+	g.State.Status.Risk = risks[rand.IntN(len(risks))]
+}
+
+func (g *Game) Write() error {
 	g.State.Status.Seed = int64(rand.Int32())
 	g.State.Status.Timestamp = time.Now().Unix()
-	g.State.Write(g.Profile)
+	return g.State.Write(g.Profile)
+}
+
+func (g *Game) Read() error {
+	state, err := res.ReadSave(g.State.Status.Name)
+	if err != nil {
+		return err
+	}
+	g.State = *state
+	return nil
+}
+
+func (g *Game) SaveGame() error {
+	if g == nil {
+		return fmt.Errorf("Game is nil")
+	}
+	// Marshall the settings
+	data, err := json.Marshal(*g)
+	if err != nil {
+		return err
+	}
+
+	// Get the absolute path of the running executable
+	ex, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	// Extract the directory from the executable path
+	exPath := filepath.Dir(ex)
+
+	// Save the settings file
+	return os.WriteFile(exPath+"/"+strcase.ToLowerCamel(g.State.Status.Name), data, 0644)
 }
 
 func (g *Game) LoadGame(path string) error {
