@@ -319,6 +319,9 @@ func (s *MainMenu) NewGame() {
 	} else {
 		game.State.Status.FogOfWar = "fog_off"
 	}
+
+	game.Money = int64(s.Reslvl*300) + 300
+
 	err = game.Populate()
 	if err != nil {
 		log.Printf("%+v\n", err)

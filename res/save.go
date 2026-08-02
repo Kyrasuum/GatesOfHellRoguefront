@@ -9,8 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/iancoleman/strcase"
 )
 
 type Save struct {
@@ -64,6 +62,7 @@ type Item struct {
 		Y int `json:"y"`
 	} `json:"pos"`
 	Equip string `json:"equip"`
+	Cost  int    `json:"cost"`
 }
 
 type Squad struct {
@@ -120,7 +119,7 @@ func ReadSave(filename string) (*Save, error) {
 }
 
 func (s *Save) Write(path string) error {
-	file, err := os.Create(path + "/" + strcase.ToLowerCamel(s.Status.Name) + ".sav")
+	file, err := os.Create(path + "/" + s.Status.Name + ".sav")
 	if err != nil {
 		return err
 	}
@@ -237,7 +236,7 @@ func (c *Campaign) Bytes() []byte {
 func (s *Soldier) Bytes() []byte {
 	var w bytes.Buffer
 
-	fmt.Fprintf(&w, "\t{human \"%s\" 0xc%03d\n", s.Path, s.Id)
+	fmt.Fprintf(&w, "\t{human \"%s\" 0x%04d\n", s.Path, s.Id)
 	fmt.Fprintf(&w, "\t\t{Position 0 0}\n")
 	fmt.Fprintf(&w, "\t\t{TexMod \"auto\"}\n")
 	fmt.Fprintf(&w, "\t\t{SpawnedInFog}\n")
@@ -257,7 +256,7 @@ func (s *Soldier) Bytes() []byte {
 func (i *Inventory) Bytes() []byte {
 	var w bytes.Buffer
 
-	fmt.Fprintf(&w, "\t{Inventory\n")
+	fmt.Fprintf(&w, "\t{Inventory 0x%04d\n", i.Id)
 	fmt.Fprintf(&w, "\t\t{box\n")
 	fmt.Fprintf(&w, "\t\t\t{clear}\n")
 	for _, item := range i.Items {
@@ -272,9 +271,9 @@ func (i *Inventory) Bytes() []byte {
 func (i *Item) Bytes() []byte {
 	var w bytes.Buffer
 
-	fmt.Fprintf(&w, "\t\t\t{item %s ", i.Name)
+	fmt.Fprintf(&w, "\t\t\t{item \"%s\" ", i.Name)
 	if i.Amount > 0 {
-		fmt.Fprintf(&w, "%d ", i.Amount)
+		fmt.Fprintf(&w, "%d ", int64(i.Amount))
 	}
 	if i.Pos != nil {
 		fmt.Fprintf(&w, "{cell %d %d}", i.Pos.X, i.Pos.Y)
@@ -287,9 +286,9 @@ func (i *Item) Bytes() []byte {
 func (s *Squad) Bytes() []byte {
 	var w bytes.Buffer
 
-	fmt.Fprintf(&w, "\t\t{\"%s\" \"stage_1\"", s.Name)
+	fmt.Fprintf(&w, "\t\t{\"%s\" \"\"", s.Name)
 	for _, soldier := range s.Soldiers {
-		fmt.Fprintf(&w, "0xc%03d", soldier.Id)
+		fmt.Fprintf(&w, " 0x%04d", soldier.Id)
 	}
 	fmt.Fprintf(&w, "}\n")
 
@@ -401,7 +400,7 @@ func ParseSoldier(scanner *bufio.Scanner, line string) (*Soldier, error) {
 		s.Path = strings.Trim(fields[1], "\"")
 	}
 	if len(fields) >= 3 {
-		s.Id = int(ParseInt64(strings.Trim(fields[2], "0xc")))
+		s.Id = int(ParseHex(strings.Trim(fields[2], "0x")))
 	}
 
 	for scanner.Scan() {
@@ -451,6 +450,11 @@ func FieldValue(line string) string {
 	}
 
 	return strings.TrimSpace(strings.TrimSuffix(parts[1], "}"))
+}
+
+func ParseHex(line string) int64 {
+	n, _ := strconv.ParseInt(FieldValue(line), 16, 64)
+	return n
 }
 
 func ParseInt64(line string) int64 {

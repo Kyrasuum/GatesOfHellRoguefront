@@ -16,25 +16,29 @@ import (
 var ()
 
 type Infantry struct {
-	Name string  `json:"name"`
-	Side string  `json:"side"`
-	Tier int     `json:"tier"`
-	Cost float64 `json:"cost"`
+	Name string     `json:"name"`
+	Side string     `json:"side"`
+	Tier int        `json:"tier"`
+	Era  string     `jons:"era"`
+	Nid  string     `json:"name"`
+	Cost int        `json:"cost"`
+	Inv  *Inventory `json:"inv,omitempty"`
 }
 
 type Squad struct {
-	Name     string   `json:"name"`
-	Side     string   `json:"side"`
-	Period   string   `json:"period"`
-	Soldiers []string `json:"soldiers"`
+	Name     string     `json:"name"`
+	Side     string     `json:"side"`
+	Era      string     `json:"era"`
+	Cost     int        `json:"cost"`
+	Soldiers []Infantry `json:"soldiers"`
 }
 
 type Vehicle struct {
-	Name   string   `json:"name"`
-	Side   string   `json:"side"`
-	Period string   `json:"period"`
-	Cost   float64  `json:"cost"`
-	Crew   []string `json:"crew"`
+	Name string     `json:"name"`
+	Side string     `json:"side"`
+	Era  string     `json:"era"`
+	Cost int        `json:"cost"`
+	Crew []Infantry `json:"crew"`
 }
 
 type Inventory struct {
@@ -227,6 +231,7 @@ func FindMaps(game string, mods []res.Mod) (maps map[string][]string) {
 }
 
 func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squads map[string]map[string]Squad, vehicles map[string]Vehicle) {
+	inventories := FindInventories(game, mods)
 	files := SearchContent(game, mods, "/resource/set/multiplayer/units/conquest/", ".set")
 
 	infantry = make(map[string]Infantry)
@@ -250,7 +255,7 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 						tier = int(n)
 					}
 				}
-				cost := float64(tier * 50)
+				cost := tier * 50
 				side := ""
 				for _, arg := range props.Args {
 					if strings.Contains(arg, "side") {
@@ -259,22 +264,34 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 					if strings.Contains(arg, "cost") {
 						n, err := strconv.ParseFloat(arg[5:len(arg)-1], 64)
 						if err == nil {
-							cost = float64(n)
+							cost = int(n)
 						}
 					}
+				}
+				era := "late"
+				spl := strings.Split(unitset.Name, "/")
+				if len(spl) > 2 {
+					era = spl[len(spl)-2]
+				}
+				var inv *Inventory
+				if i, ok := inventories[unitset.Name]; ok {
+					inv = &i
 				}
 				inf := Infantry{
 					Name: unitset.Name,
 					Side: side,
 					Tier: tier,
+					Era:  era,
+					Nid:  "",
 					Cost: cost,
+					Inv:  inv,
 				}
 				infantry[inf.Name] = inf
 			case strings.HasPrefix(unitset.Name, "squad"):
 				side := ""
 				name := ""
-				period := ""
-				soldiers := []string{}
+				era := ""
+				soldiers := []Infantry{}
 
 				for _, arg := range unitset.Args {
 					if len(arg) < 1 {
@@ -286,7 +303,7 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 					case strings.HasPrefix(arg, "name"):
 						name = arg[5 : len(arg)-1]
 					case strings.HasPrefix(arg, "period"):
-						period = arg[7 : len(arg)-1]
+						era = arg[7 : len(arg)-1]
 					case strings.HasPrefix(arg, "c"):
 						ctext := strings.Split(arg[:len(arg)-1], "(")
 						if len(ctext) > 1 {
@@ -296,7 +313,7 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 								num, err := strconv.ParseInt(centry[1], 10, 64)
 								if err == nil {
 									for i := int64(0); i < num; i++ {
-										soldiers = append(soldiers, soldier)
+										soldiers = append(soldiers, Infantry{Name: soldier})
 									}
 								}
 							}
@@ -306,8 +323,9 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 				squad := Squad{
 					Side:     side,
 					Name:     name,
-					Period:   period,
+					Era:      era,
 					Soldiers: soldiers,
+					Cost:     0,
 				}
 				if _, ok := squads[squad.Side]; !ok {
 					squads[squad.Side] = make(map[string]Squad)
@@ -317,10 +335,10 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 				if len(unitset.Body) < 1 {
 					continue
 				}
-				cost := float64(0)
+				cost := 0
 				side := ""
-				crew := []string{}
-				period := ""
+				crew := []Infantry{}
+				era := ""
 				for _, arg := range unitset.Body[0].Args {
 					if len(arg) < 1 {
 						continue
@@ -329,7 +347,7 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 					case strings.HasPrefix(arg, "side"):
 						side = arg[5 : len(arg)-1]
 					case strings.HasPrefix(arg, "period"):
-						period = arg[7 : len(arg)-1]
+						era = arg[7 : len(arg)-1]
 					case strings.HasPrefix(arg, "crew"):
 						ctext := strings.Split(arg[:len(arg)-1], "(")
 						if len(ctext) > 1 {
@@ -339,7 +357,7 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 								num, err := strconv.ParseInt(centry[1], 10, 64)
 								if err == nil {
 									for i := int64(0); i < num; i++ {
-										crew = append(crew, soldier)
+										crew = append(crew, Infantry{Name: soldier})
 									}
 								}
 							}
@@ -349,28 +367,53 @@ func FindUnits(game string, mods []res.Mod) (infantry map[string]Infantry, squad
 				if unitset.Body[1].Name == "cost" && len(unitset.Body[1].Args) > 0 {
 					n, err := strconv.ParseFloat(unitset.Body[1].Args[0], 64)
 					if err == nil {
-						cost = float64(n)
+						cost = int(n)
 					}
 				}
 				if cost < 1 {
 					continue
 				}
 				vehicle := Vehicle{
-					Name:   unitset.Name,
-					Cost:   cost,
-					Side:   side,
-					Crew:   crew,
-					Period: period,
+					Name: unitset.Name,
+					Cost: cost,
+					Side: side,
+					Crew: crew,
+					Era:  era,
 				}
 				vehicles[vehicle.Name] = vehicle
 			}
 		}
 	}
+
+	//fixing up squads with acutal costs and actual infantry
+	for _, side := range squads {
+		for _, squad := range side {
+			cost := 0
+			for i, ent := range squad.Soldiers {
+				soldier := infantry[fmt.Sprintf("mp/%s/%s/%s", squad.Side, squad.Era, ent.Name)]
+				squad.Soldiers[i] = soldier
+				cost += soldier.Cost
+			}
+			squad.Cost = int(float64(cost) * 1.2) // extra for convenience
+			squads[squad.Side][squad.Name] = squad
+		}
+	}
+
+	//fixing up vehicle crews
+	for _, vehicle := range vehicles {
+		for i, ent := range vehicle.Crew {
+			soldier := infantry[fmt.Sprintf("mp/%s/%s/%s", vehicle.Side, vehicle.Era, ent.Name)]
+			vehicle.Crew[i] = soldier
+		}
+	}
+
 	return infantry, squads, vehicles
 }
 
-func FindInventories(game string, mods []res.Mod) (inventories []Inventory) {
+func FindInventories(game string, mods []res.Mod) (inventories map[string]Inventory) {
 	sets := SearchContent(game, mods, "/resource/set/breed/mp/", ".set")
+	inventories = make(map[string]Inventory)
+
 	for _, invset := range sets {
 		name := strings.Join(strings.Split(invset.Name, "breed/")[1:], "breed/")
 		name = name[:len(name)-4]
@@ -396,6 +439,7 @@ func FindInventories(game string, mods []res.Mod) (inventories []Inventory) {
 						for _, def := range prop.Body {
 							if def.Name == "item" && len(def.Args) > 0 {
 								n := float64(0)
+								extra := ""
 								if len(def.Args) > 1 {
 									if def.Args[1] != "filling" && def.Args[1] != "filled" {
 										if len(def.Args) > 2 && def.Args[2] != "filled" {
@@ -419,11 +463,14 @@ func FindInventories(game string, mods []res.Mod) (inventories []Inventory) {
 											}
 											n = num
 										}
+									} else {
+										extra = "filled"
 									}
 								}
 								item := res.Item{
 									Name:   def.Args[0],
 									Amount: n,
+									Equip:  extra,
 								}
 								inv.Items = append(inv.Items, item)
 							}
@@ -432,7 +479,7 @@ func FindInventories(game string, mods []res.Mod) (inventories []Inventory) {
 				}
 			}
 		}
-		inventories = append(inventories, inv)
+		inventories[inv.Name] = inv
 	}
 	return inventories
 }
@@ -440,6 +487,22 @@ func FindInventories(game string, mods []res.Mod) (inventories []Inventory) {
 func FindItems(game string, mods []res.Mod) (items map[string][]res.Item) {
 	sets := SearchContent(game, mods, "/resource/set/stuff/", "")
 	items = make(map[string][]res.Item)
+
+	costs := map[string]int{
+		"bazooka":   20,
+		"rifle":     10,
+		"explosive": 20,
+		"grenade":   8,
+		"med":       5,
+		"melee":     2,
+		"pistol":    7,
+		"smg":       12,
+		"special":   18,
+		"flame":     30,
+		"mgun":      50,
+		"shell":     3,
+	}
+
 	for _, itemset := range sets {
 		name := strings.Join(strings.Split(itemset.Name, "stuff/")[1:], "stuff/")
 		split := strings.Split(name, "/")
@@ -447,8 +510,16 @@ func FindItems(game string, mods []res.Mod) (items map[string][]res.Item) {
 		// only processing items which would be in an inventory
 		case "bazooka", "rifle", "explosive", "grenade", "med", "melee", "pistol", "smg", "special", "flame", "mgun", "shell":
 			name = split[len(split)-1]
+			cost := 10
+			if c, ok := costs[split[0]]; ok {
+				if strings.HasSuffix(name, ".ammo") {
+					c /= 4
+				}
+				cost = c
+			}
 			item := res.Item{
 				Name: name,
+				Cost: cost,
 			}
 			items[split[0]] = append(items[split[0]], item)
 		}

@@ -28,6 +28,8 @@ type app struct {
 
 	width  int32
 	height int32
+
+	shutdown bool
 }
 
 // initialize app
@@ -40,6 +42,8 @@ func (a *app) init() error {
 
 	a.logicInterval = 16
 	a.drawInterval = 16
+
+	a.shutdown = false
 
 	App.CurApp = a
 
@@ -102,7 +106,7 @@ func (a *app) GetHeight() int32 {
 
 // detect if app should continue running
 func (a *app) Running() bool {
-	return !rl.WindowShouldClose()
+	return !a.shutdown && !rl.WindowShouldClose()
 }
 
 // main run loop for the app while running
@@ -152,7 +156,7 @@ func (a *app) run(debug bool) error {
 		a.render()
 		time.Sleep(time.Duration(a.drawInterval) * time.Millisecond)
 	}
-
+	rl.CloseWindow()
 	return nil
 }
 
@@ -177,7 +181,7 @@ func (a *app) Exit() {
 	if a.curStage != nil {
 		a.curStage.OnRemove()
 	}
-	rl.CloseWindow()
+	a.shutdown = true
 }
 
 // start the application
