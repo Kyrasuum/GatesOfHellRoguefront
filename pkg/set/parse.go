@@ -7,7 +7,7 @@ type Parser struct {
 	current Token
 }
 
-func Parse(data []byte) ([]*Set, error) {
+func Parse(name string, data []byte) (*Set, error) {
 	p := &Parser{
 		lexer: NewLexer(data),
 	}
@@ -16,18 +16,20 @@ func Parse(data []byte) ([]*Set, error) {
 		return nil, err
 	}
 
-	var roots []*Set
+	root := &Set{
+		Name: name,
+	}
 
 	for p.current.Type != TokenEOF {
-		root, err := p.parseSet()
+		node, err := p.parseSet()
 		if err != nil {
 			return nil, err
 		}
 
-		roots = append(roots, root)
+		root.Body = append(root.Body, node)
 	}
 
-	return roots, nil
+	return root, nil
 }
 
 func (p *Parser) next() error {
@@ -39,22 +41,20 @@ func (p *Parser) next() error {
 	return nil
 }
 
-func (p *Parser) expect(expected TokenType) error {
-	if p.current.Type != expected {
-		return fmt.Errorf(
-			"expected %s, got %s at %d:%d",
-			expected,
+func (p *Parser) parseSet() (*Set, error) {
+	var end TokenType
+	switch p.current.Type {
+	case TokenLBrace:
+		end = TokenRBrace
+	case TokenLParen:
+		end = TokenRParen
+	default:
+		return nil, fmt.Errorf(
+			"expected '{' or '(', got %s at %d:%d",
 			p.current.Type,
 			p.current.Line,
 			p.current.Column,
 		)
-	}
-	return nil
-}
-
-func (p *Parser) parseSet() (*Set, error) {
-	if err := p.expect(TokenLBrace); err != nil {
-		return nil, err
 	}
 	if err := p.next(); err != nil {
 		return nil, err
@@ -78,27 +78,31 @@ func (p *Parser) parseSet() (*Set, error) {
 
 	for {
 		switch p.current.Type {
-		case TokenEOF:
-			return nil, fmt.Errorf(
-				"unexpected EOF while parsing '%s'",
-				node.Name,
-			)
 		case TokenWord, TokenString:
-			node.Args = append(node.Args, p.current.Value)
+			if node.Name == "" {
+				node.Name = p.current.Value
+			} else {
+				node.Args = append(node.Args, p.current.Value)
+			}
 			if err := p.next(); err != nil {
 				return nil, err
 			}
-		case TokenLBrace:
+		case TokenLBrace, TokenLParen:
 			child, err := p.parseSet()
 			if err != nil {
 				return nil, err
 			}
 			node.Body = append(node.Body, child)
-		case TokenRBrace:
+		case end:
 			if err := p.next(); err != nil {
 				return nil, err
 			}
 			return node, nil
+		case TokenEOF:
+			return nil, fmt.Errorf(
+				"unexpected EOF while parsing %q",
+				node.Name,
+			)
 		}
 	}
 }

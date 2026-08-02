@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"roguefront/pkg/app"
+	"roguefront/pkg/set"
 	"roguefront/res"
 
 	"github.com/iancoleman/strcase"
@@ -31,6 +32,12 @@ type Game struct {
 	Maps    map[string][]string `json:"maps"`
 	Mods    []res.Mod           `json:"mods"`
 	Nations []string            `json:"nations"`
+
+	Squads      map[string]map[string]set.Squad `json:"sqd"`
+	Infantry    map[string]set.Infantry         `json:"inf"`
+	Vehicles    map[string]set.Vehicle          `json:"veh"`
+	Items       map[string][]res.Item           `json:"itm"`
+	Inventories []set.Inventory                 `json:"inv"`
 
 	State res.Save `json:"state"`
 
@@ -176,9 +183,7 @@ func (g *Game) OnRemove() {
 func (g *Game) Populate() error {
 	g.PopulateMaps()
 	g.PopulateUnits()
-	g.PopulateSquads()
 	g.PopulateItems()
-	g.PopulateVehicles()
 
 	ret := 0
 	if len(g.Nations) < 1 {
@@ -197,16 +202,17 @@ func (g *Game) Populate() error {
 }
 
 func (g *Game) PopulateMaps() {
-	g.Maps = res.FindMaps(g.Game, g.Mods)
+	g.Maps = set.FindMaps(g.Game, g.Mods)
 }
 
-func (g *Game) PopulateUnits() {}
+func (g *Game) PopulateUnits() {
+	g.Infantry, g.Squads, g.Vehicles = set.FindUnits(g.Game, g.Mods)
+}
 
-func (g *Game) PopulateSquads() {}
-
-func (g *Game) PopulateItems() {}
-
-func (g *Game) PopulateVehicles() {}
+func (g *Game) PopulateItems() {
+	g.Items = set.FindItems(g.Game, g.Mods)
+	g.Inventories = set.FindInventories(g.Game, g.Mods)
+}
 
 func (g *Game) ReRoll() {
 	g.RollLandscape()

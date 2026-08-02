@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"roguefront/pkg/app"
+	"roguefront/pkg/set"
 	"roguefront/res"
 
 	"github.com/sqweek/dialog"
@@ -446,24 +447,28 @@ func (s *MainMenu) DetectSettings() error {
 }
 
 func (s *MainMenu) UpdateNations() {
-	s.nations = ""
-	s.nationlist = []string{}
+	nations := ""
+	nationlist := []string{}
 
+	// pretty names for nations
 	namelist := map[string]string{
-		"ger": "Germany",
-		"rus": "Soviet Union",
-		"fin": "Finland",
-		"usa": "United States (GoH)",
-		"eng": "Commonwealth (GoH)",
-		"aus": "Austria",
-		"fra": "France",
-		"pol": "Poland",
-		"hun": "Hungary",
-		"jap": "Japan",
+		"ger":  "Germany",
+		"rus":  "Soviet Union",
+		"fin":  "Finland",
+		"usa":  "United States (GoH)",
+		"eng":  "Commonwealth (GoH)",
+		"aus":  "Austria",
+		"fra":  "France",
+		"pol":  "Poland",
+		"hun":  "Hungary",
+		"jap":  "Japan",
+		"ita":  "Italy",
+		"usaf": "United States",
+		"uk":   "Commonwealth",
 	}
 
-	nations := res.FindNations(s.Game, s.modlist)
-	for _, nation := range nations {
+	nset := set.FindNations(s.Game, s.modlist)
+	for _, nation := range nset {
 		if nation == "eng" && !s.Finest {
 			continue
 		}
@@ -473,56 +478,61 @@ func (s *MainMenu) UpdateNations() {
 		if nation == "fin" && !s.Talvisota {
 			continue
 		}
-		s.nationlist = append(s.nationlist, nation)
+		nationlist = append(s.nationlist, nation)
 		name := nation
 		if n, ok := namelist[nation]; ok {
 			name = n
 		}
-		s.nations = s.nations + fmt.Sprintf("#%02d#%s;", len(s.nationlist), name)
+		nations = nations + fmt.Sprintf("#%02d#%s;", len(nationlist), name)
 	}
 
-	if len(s.nations) > 0 {
-		s.nations = s.nations[:len(s.nations)-1]
-	}
-	if s.Nation >= int32(len(s.nationlist)) {
-		s.Nation = 0
-	}
-	if s.Enemy >= int32(len(s.nationlist)) {
-		s.Enemy = 0
+	if len(nations) > 0 {
+		nations = nations[:len(nations)-1]
+		s.nations = nations
+		s.nationlist = nationlist
+		if s.Nation >= int32(len(s.nationlist)) {
+			s.Nation = 0
+		}
+		if s.Enemy >= int32(len(s.nationlist)) {
+			s.Enemy = 0
+		}
 	}
 }
 
 func (s *MainMenu) UpdateLevels() {
-	s.levels = ""
-	s.levlist = []string{}
+	levels := ""
+	levlist := []string{}
 
-	levels := res.FindLevels(s.Game, s.modlist)
-	for _, level := range levels {
-		s.levlist = append(s.levlist, level)
-		s.levels = s.levels + fmt.Sprintf("#%02d#%s;", len(s.levlist), level)
+	lset := set.FindLevels(s.Game, s.modlist)
+	for _, level := range lset {
+		levlist = append(levlist, level)
+		levels = levels + fmt.Sprintf("#%02d#%s;", len(levlist), level)
 	}
 
-	if len(s.levels) > 0 {
-		s.levels = s.levels[:len(s.levels)-1]
-	}
-	if s.Difficulty >= int32(len(s.levlist)) {
-		s.Difficulty = 0
+	if len(levels) > 0 {
+		levels = levels[:len(levels)-1]
+		s.levels = levels
+		s.levlist = levlist
+		if s.Difficulty >= int32(len(s.levlist)) {
+			s.Difficulty = 0
+		}
 	}
 }
 
 func (s *MainMenu) UpdateResources() {
-	s.resources = ""
+	resources := ""
 
-	resources := res.FindResources(s.Game, s.modlist)
-	for i, level := range resources {
-		s.resources = s.resources + fmt.Sprintf("#%02d#%s;", i+1, level)
+	rset := set.FindResources(s.Game, s.modlist)
+	for i, level := range rset {
+		resources = resources + fmt.Sprintf("#%02d#%s;", i+1, level)
 	}
 
-	if len(s.resources) > 0 {
-		s.resources = s.resources[:len(s.resources)-1]
-	}
-	if s.Reslvl >= int32(len(resources)) {
-		s.Reslvl = 0
+	if len(resources) > 0 {
+		resources = resources[:len(resources)-1]
+		s.resources = resources
+		if s.Reslvl >= int32(len(s.resources)) {
+			s.Reslvl = 0
+		}
 	}
 }
 
@@ -532,6 +542,5 @@ func (s *MainMenu) UpdateMods() (err error) {
 	}
 
 	s.modlist, err = res.FindMods(s.Workshop)
-
 	return err
 }

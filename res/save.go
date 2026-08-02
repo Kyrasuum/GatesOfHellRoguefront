@@ -57,8 +57,8 @@ type Inventory struct {
 }
 
 type Item struct {
-	Name   string `json:"name"`
-	Amount int    `json:"amount"`
+	Name   string  `json:"name"`
+	Amount float64 `json:"amount"`
 	Pos    *struct {
 		X int `json:"x"`
 		Y int `json:"y"`

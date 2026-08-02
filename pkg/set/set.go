@@ -1,7 +1,7 @@
 package set
 
 type Set struct {
-	Name string   `json:"name"`
+	Name string   `json:"name,omitempty"`
 	Args []string `json:"args,omitempty"`
 	Body []*Set   `json:"body,omitempty"`
 }

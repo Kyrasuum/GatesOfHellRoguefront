@@ -11,6 +11,8 @@ const (
 	TokenEOF TokenType = iota
 	TokenLBrace
 	TokenRBrace
+	TokenLParen
+	TokenRParen
 	TokenWord
 	TokenString
 )
@@ -23,6 +25,10 @@ func (t TokenType) String() string {
 		return "{"
 	case TokenRBrace:
 		return "}"
+	case TokenLParen:
+		return "("
+	case TokenRParen:
+		return ")"
 	case TokenWord:
 		return "word"
 	case TokenString:
@@ -65,13 +71,11 @@ func (l *Lexer) peek() rune {
 }
 
 func (l *Lexer) advance() rune {
-
 	if l.pos >= len(l.input) {
 		return 0
 	}
 
 	r := l.input[l.pos]
-
 	l.pos++
 
 	if r == '\n' {
@@ -87,7 +91,6 @@ func (l *Lexer) advance() rune {
 func (l *Lexer) Next() (Token, error) {
 
 	for {
-
 		for unicode.IsSpace(l.peek()) {
 			l.advance()
 		}
@@ -101,11 +104,8 @@ func (l *Lexer) Next() (Token, error) {
 		}
 
 		if l.peek() == ';' {
-
 			for {
-
 				r := l.advance()
-
 				if r == '\n' || r == 0 {
 					break
 				}
@@ -123,9 +123,7 @@ func (l *Lexer) Next() (Token, error) {
 	switch l.peek() {
 
 	case '{':
-
 		l.advance()
-
 		return Token{
 			Type:   TokenLBrace,
 			Line:   line,
@@ -133,25 +131,34 @@ func (l *Lexer) Next() (Token, error) {
 		}, nil
 
 	case '}':
-
 		l.advance()
-
 		return Token{
 			Type:   TokenRBrace,
 			Line:   line,
 			Column: column,
 		}, nil
 
-	case '"':
-
+	case '(':
 		l.advance()
+		return Token{
+			Type:   TokenLParen,
+			Line:   line,
+			Column: column,
+		}, nil
 
+	case ')':
+		l.advance()
+		return Token{
+			Type:   TokenRParen,
+			Line:   line,
+			Column: column,
+		}, nil
+
+	case '"':
+		l.advance()
 		var value []rune
-
 		for {
-
 			r := l.peek()
-
 			if r == 0 {
 				return Token{}, fmt.Errorf(
 					"unterminated string at %d:%d",
@@ -166,36 +173,27 @@ func (l *Lexer) Next() (Token, error) {
 			}
 
 			if r == '\\' {
-
 				l.advance()
-
 				switch l.peek() {
-
 				case '"':
 					value = append(value, '"')
 					l.advance()
-
 				case '\\':
 					value = append(value, '\\')
 					l.advance()
-
 				case 'n':
 					value = append(value, '\n')
 					l.advance()
-
 				case 't':
 					value = append(value, '\t')
 					l.advance()
-
 				default:
 					value = append(value, '\\')
 				}
-
 				continue
 			}
 
 			value = append(value, r)
-
 			l.advance()
 		}
 
@@ -209,21 +207,30 @@ func (l *Lexer) Next() (Token, error) {
 
 	var value []rune
 
+	depth := 0
 	for {
-
 		r := l.peek()
-
-		if r == 0 ||
-			unicode.IsSpace(r) ||
-			r == '{' ||
-			r == '}' ||
-			r == ';' {
-
+		if r == 0 {
 			break
 		}
 
-		value = append(value, r)
+		if depth == 0 {
+			if unicode.IsSpace(r) || r == '{' || r == '}' || r == ';' {
+				break
+			}
+			// Only ')' terminates a word if it isn't part of a balanced (...)
+			if r == ')' {
+				break
+			}
+		}
 
+		if r == '(' {
+			depth++
+		} else if r == ')' {
+			depth--
+		}
+
+		value = append(value, r)
 		l.advance()
 	}
 
