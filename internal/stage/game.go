@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"roguefront/pkg/app"
+	"roguefront/pkg/data"
 	"roguefront/pkg/rng"
-	"roguefront/pkg/set"
-	"roguefront/res"
 
 	"github.com/iancoleman/strcase"
 
@@ -33,18 +32,17 @@ type Game struct {
 	Money int64 `json:"money"`
 
 	Maps    map[string][]string `json:"maps"`
-	Mods    []res.Mod           `json:"mods"`
+	Mods    []data.Mod          `json:"mods"`
 	Nations []string            `json:"nations"`
 
-	Squads   map[string]map[string]set.Squad `json:"sqd"`
-	Infantry map[string]set.Infantry         `json:"inf"`
-	Vehicles map[string]set.Vehicle          `json:"veh"`
-	Items    map[string][]res.Item           `json:"itm"`
+	Squads   map[string]map[string]data.Squad `json:"sqd"`
+	Infantry map[string]*data.Infantry        `json:"inf"`
+	Vehicles map[string]data.Vehicle          `json:"veh"`
+	Items    map[string][]data.Item           `json:"itm"`
 
-	Owned Owned `json:"owned"`
-	Shop  Store `json:"store"`
+	Shop Store `json:"store"`
 
-	State res.Save `json:"state"`
+	State data.Save `json:"state"`
 
 	paused    bool         `json:"-"`
 	preview   bool         `json:"-"`
@@ -53,13 +51,7 @@ type Game struct {
 	ownview   rl.Rectangle `json:"-"`
 	strscroll rl.Vector2   `json:"-"`
 	strview   rl.Rectangle `json:"-"`
-}
-
-type Owned struct {
-	Squads   []set.Squad    `json:"sqd"`
-	Infantry []set.Infantry `json:"inf"`
-	Vehicles []set.Vehicle  `json:"veh"`
-	Items    []res.Item     `json:"itm"`
+	examine   []examinable `josn:"-"`
 }
 
 type Store struct {
@@ -70,23 +62,32 @@ type Store struct {
 }
 
 type StoreSquad struct {
-	Squad  set.Squad `json:"sqd"`
-	Amount int       `json:"num"`
+	Squad  data.Squad `json:"sqd"`
+	Amount int        `json:"num"`
 }
 
 type StoreInfantry struct {
-	Infantry set.Infantry `json:"inf"`
-	Amount   int          `json:"num"`
+	Infantry *data.Infantry `json:"inf"`
+	Amount   int            `json:"num"`
 }
 
 type StoreVehicle struct {
-	Vehicle set.Vehicle `json:"veh"`
-	Amount  int         `json:"num"`
+	Vehicle data.Vehicle `json:"veh"`
+	Amount  int          `json:"num"`
 }
 
 type StoreItem struct {
-	Item   res.Item `json:"itm"`
-	Amount int      `json:"num"`
+	Item   data.Item `json:"itm"`
+	Amount int       `json:"num"`
+}
+
+func (ent StoreInfantry) Display(editable bool, exit func()) { ent.Infantry.Display(false, exit) }
+func (ent StoreVehicle) Display(editable bool, exit func())  { ent.Vehicle.Display(false, exit) }
+func (ent StoreSquad) Display(editable bool, exit func())    { ent.Squad.Display(false, exit) }
+func (ent StoreItem) Display(editable bool, exit func())     { ent.Item.Display(false, exit) }
+
+type examinable interface {
+	Display(editable bool, exit func())
 }
 
 // initialize game object
@@ -102,20 +103,14 @@ func (g *Game) Init() error {
 	g.Money = 0
 
 	g.Maps = map[string][]string{}
-	g.Mods = []res.Mod{}
+	g.Mods = []data.Mod{}
 	g.Nations = []string{}
 
-	g.Squads = make(map[string]map[string]set.Squad)
-	g.Infantry = make(map[string]set.Infantry)
-	g.Vehicles = make(map[string]set.Vehicle)
-	g.Items = make(map[string][]res.Item)
+	g.Squads = make(map[string]map[string]data.Squad)
+	g.Infantry = make(map[string]*data.Infantry)
+	g.Vehicles = make(map[string]data.Vehicle)
+	g.Items = make(map[string][]data.Item)
 
-	g.Owned = Owned{
-		Squads:   []set.Squad{},
-		Infantry: []set.Infantry{},
-		Vehicles: []set.Vehicle{},
-		Items:    []res.Item{},
-	}
 	g.Shop = Store{
 		Squads:   []StoreSquad{},
 		Infantry: []StoreInfantry{},
@@ -123,13 +118,14 @@ func (g *Game) Init() error {
 		Items:    []StoreItem{},
 	}
 
-	g.State = res.Save{
-		Campaign: &res.Campaign{
-			Soldiers:    []*res.Soldier{},
-			Inventories: []*res.Inventory{},
-			Squads:      []*res.Squad{},
+	g.State = data.Save{
+		Campaign: &data.Campaign{
+			Infantry:    []*data.Infantry{},
+			Vehicles:    []*data.Vehicle{},
+			Inventories: []*data.Inventory{},
+			Squads:      []*data.Squad{},
 		},
-		Status: &res.Status{
+		Status: &data.Status{
 			Mods:        []string{},
 			Timestamp:   time.Now().Unix(),
 			Seed:        0,
@@ -157,6 +153,7 @@ func (g *Game) Init() error {
 	g.ownview = rl.NewRectangle(0, 0, 0, 0)
 	g.strscroll = rl.NewVector2(0, 0)
 	g.strview = rl.NewRectangle(0, 0, 0, 0)
+	g.examine = []examinable{}
 
 	return nil
 }
@@ -288,31 +285,47 @@ func (g *Game) Render() {
 
 	switch g.tab {
 	case 0:
-		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.Owned.Squads)*20+10)), &g.ownscroll, &g.ownview)
+		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.State.Campaign.Squads)*20+10)), &g.ownscroll, &g.ownview)
 		rl.BeginScissorMode(int32(g.ownview.X), int32(g.ownview.Y), int32(g.ownview.Width), int32(g.ownview.Height))
-		for i, ent := range g.Owned.Squads {
-			gui.Label(rl.NewRectangle(11, float32(48+20*i)+g.ownscroll.Y, width/2-34, 20), ent.Name)
+		for i, ent := range g.State.Campaign.Squads {
+			preview := gui.Button(rl.NewRectangle(11, float32(48+20*i)+g.strscroll.Y, 80, 20), "View")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(101, float32(48+20*i)+g.ownscroll.Y, width/2-124, 20), ent.Name)
 		}
 		rl.EndScissorMode()
 	case 1:
-		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.Owned.Vehicles)*20+10)), &g.ownscroll, &g.ownview)
+		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.State.Campaign.Vehicles)*20+10)), &g.ownscroll, &g.ownview)
 		rl.BeginScissorMode(int32(g.ownview.X), int32(g.ownview.Y), int32(g.ownview.Width), int32(g.ownview.Height))
-		for i, ent := range g.Owned.Vehicles {
-			gui.Label(rl.NewRectangle(11, float32(48+20*i)+g.ownscroll.Y, width/2-34, 20), ent.Name)
+		for i, ent := range g.State.Campaign.Vehicles {
+			preview := gui.Button(rl.NewRectangle(11, float32(48+20*i)+g.strscroll.Y, 80, 20), "View")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(101, float32(48+20*i)+g.ownscroll.Y, width/2-124, 20), ent.Name)
 		}
 		rl.EndScissorMode()
 	case 2:
-		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.Owned.Infantry)*20+10)), &g.ownscroll, &g.ownview)
+		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.State.Campaign.Infantry)*20+10)), &g.ownscroll, &g.ownview)
 		rl.BeginScissorMode(int32(g.ownview.X), int32(g.ownview.Y), int32(g.ownview.Width), int32(g.ownview.Height))
-		for i, ent := range g.Owned.Infantry {
-			gui.Label(rl.NewRectangle(11, float32(48+20*i)+g.ownscroll.Y, width/2-34, 20), ent.Name)
+		for i, ent := range g.State.Campaign.Infantry {
+			preview := gui.Button(rl.NewRectangle(11, float32(48+20*i)+g.strscroll.Y, 80, 20), "View")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(101, float32(48+20*i)+g.ownscroll.Y, width/2-124, 20), ent.Name)
 		}
 		rl.EndScissorMode()
 	case 3:
-		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.Owned.Items)*20+10)), &g.ownscroll, &g.ownview)
+		gui.ScrollPanel(rl.NewRectangle(0, 43, width/2, height-43), "", rl.NewRectangle(0, 0, width/2-14, float32(len(g.State.Campaign.Items)*20+10)), &g.ownscroll, &g.ownview)
 		rl.BeginScissorMode(int32(g.ownview.X), int32(g.ownview.Y), int32(g.ownview.Width), int32(g.ownview.Height))
-		for i, ent := range g.Owned.Items {
-			gui.Label(rl.NewRectangle(11, float32(48+20*i)+g.ownscroll.Y, width/2-34, 20), ent.Name)
+		for i, ent := range g.State.Campaign.Items {
+			preview := gui.Button(rl.NewRectangle(11, float32(48+20*i)+g.strscroll.Y, 80, 20), "View")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(101, float32(48+20*i)+g.ownscroll.Y, width/2-124, 20), ent.Name)
 		}
 		rl.EndScissorMode()
 	}
@@ -328,12 +341,14 @@ func (g *Game) Render() {
 			strbuy := gui.Button(rl.NewRectangle(width/2+11, float32(48+20*i)+g.strscroll.Y, 80, 20), fmt.Sprintf("Buy %d", ent.Squad.Cost))
 			if strbuy {
 				sqd := ent.Squad
-				for i, inf := range sqd.Soldiers {
+				for i, _ := range sqd.Soldiers {
+					inf := &data.Infantry{}
+					*inf = *sqd.Soldiers[i]
 					inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(10000), rand.Int32N(10000))
 					items := inf.Inv.Items
-					inf.Inv = &set.Inventory{
+					inf.Inv = &data.Inventory{
 						Name:  inf.Inv.Name,
-						Items: []res.Item{},
+						Items: []data.Item{},
 					}
 					for _, item := range items {
 						if item.Amount == 0 {
@@ -347,11 +362,19 @@ func (g *Game) Render() {
 					}
 					sqd.Soldiers[i] = inf
 				}
-				g.Owned.Squads = append(g.Owned.Squads, ent.Squad)
+				g.State.Campaign.Squads = append(g.State.Campaign.Squads, &sqd)
 				g.Money -= int64(ent.Squad.Cost)
+				g.Shop.Squads[i].Amount -= 1
+				if g.Shop.Squads[i].Amount < 1 {
+					g.Shop.Squads = slices.Delete(g.Shop.Squads, i, i+1)
+				}
 			}
 			gui.SetState(gui.STATE_NORMAL)
-			gui.Label(rl.NewRectangle(width/2+101, float32(48+20*i)+g.strscroll.Y, width/2-124, 20), fmt.Sprintf("%s (%d)", ent.Squad.Name, ent.Amount))
+			preview = gui.Button(rl.NewRectangle(width/2+91, float32(48+20*i)+g.strscroll.Y, 80, 20), "Preview")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(width/2+181, float32(48+20*i)+g.strscroll.Y, width/2-204, 20), fmt.Sprintf("%s (%d)", ent.Squad.Name, ent.Amount))
 		}
 		rl.EndScissorMode()
 	case 1:
@@ -364,12 +387,14 @@ func (g *Game) Render() {
 			strbuy := gui.Button(rl.NewRectangle(width/2+11, float32(48+20*i)+g.strscroll.Y, 80, 20), fmt.Sprintf("Buy %d", ent.Vehicle.Cost))
 			if strbuy {
 				veh := ent.Vehicle
-				for i, inf := range veh.Crew {
+				for i, _ := range veh.Crew {
+					inf := &data.Infantry{}
+					*inf = *veh.Crew[i]
 					inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(100), rand.Int32N(100))
 					items := inf.Inv.Items
-					inf.Inv = &set.Inventory{
+					inf.Inv = &data.Inventory{
 						Name:  inf.Inv.Name,
-						Items: []res.Item{},
+						Items: []data.Item{},
 					}
 					for _, item := range items {
 						if item.Amount == 0 {
@@ -383,11 +408,19 @@ func (g *Game) Render() {
 					}
 					veh.Crew[i] = inf
 				}
-				g.Owned.Vehicles = append(g.Owned.Vehicles, veh)
+				g.State.Campaign.Vehicles = append(g.State.Campaign.Vehicles, &veh)
 				g.Money -= int64(ent.Vehicle.Cost)
+				g.Shop.Vehicles[i].Amount -= 1
+				if g.Shop.Vehicles[i].Amount < 1 {
+					g.Shop.Vehicles = slices.Delete(g.Shop.Vehicles, i, i+1)
+				}
 			}
 			gui.SetState(gui.STATE_NORMAL)
-			gui.Label(rl.NewRectangle(width/2+101, float32(48+20*i)+g.strscroll.Y, width/2-124, 20), fmt.Sprintf("%s (%d)", ent.Vehicle.Name, ent.Amount))
+			preview = gui.Button(rl.NewRectangle(width/2+91, float32(48+20*i)+g.strscroll.Y, 80, 20), "Preview")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(width/2+181, float32(48+20*i)+g.strscroll.Y, width/2-204, 20), fmt.Sprintf("%s (%d)", ent.Vehicle.Name, ent.Amount))
 		}
 		rl.EndScissorMode()
 	case 2:
@@ -399,12 +432,13 @@ func (g *Game) Render() {
 			}
 			strbuy := gui.Button(rl.NewRectangle(width/2+11, float32(48+20*i)+g.strscroll.Y, 80, 20), fmt.Sprintf("Buy %d", ent.Infantry.Cost))
 			if strbuy {
-				inf := ent.Infantry
+				inf := &data.Infantry{}
+				*inf = *ent.Infantry
 				inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(100), rand.Int32N(100))
 				items := inf.Inv.Items
-				inf.Inv = &set.Inventory{
+				inf.Inv = &data.Inventory{
 					Name:  inf.Inv.Name,
-					Items: []res.Item{},
+					Items: []data.Item{},
 				}
 				for _, item := range items {
 					if item.Amount == 0 {
@@ -416,11 +450,19 @@ func (g *Game) Render() {
 						}
 					}
 				}
-				g.Owned.Infantry = append(g.Owned.Infantry, inf)
+				g.State.Campaign.Infantry = append(g.State.Campaign.Infantry, inf)
 				g.Money -= int64(ent.Infantry.Cost)
+				g.Shop.Infantry[i].Amount -= 1
+				if g.Shop.Infantry[i].Amount < 1 {
+					g.Shop.Infantry = slices.Delete(g.Shop.Infantry, i, i+1)
+				}
 			}
 			gui.SetState(gui.STATE_NORMAL)
-			gui.Label(rl.NewRectangle(width/2+101, float32(48+20*i)+g.strscroll.Y, width/2-124, 20), fmt.Sprintf("%s (%d)", ent.Infantry.Name, ent.Amount))
+			preview = gui.Button(rl.NewRectangle(width/2+91, float32(48+20*i)+g.strscroll.Y, 80, 20), "Preview")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(width/2+181, float32(48+20*i)+g.strscroll.Y, width/2-204, 20), fmt.Sprintf("%s (%d)", ent.Infantry.Name, ent.Amount))
 		}
 		rl.EndScissorMode()
 	case 3:
@@ -432,15 +474,24 @@ func (g *Game) Render() {
 			}
 			strbuy := gui.Button(rl.NewRectangle(width/2+11, float32(48+20*i)+g.strscroll.Y, 80, 20), fmt.Sprintf("Buy %d", ent.Item.Cost))
 			if strbuy {
-				g.Owned.Items = append(g.Owned.Items, ent.Item)
+				g.State.Campaign.Items = append(g.State.Campaign.Items, &ent.Item)
 				g.Money -= int64(ent.Item.Cost)
 			}
 			gui.SetState(gui.STATE_NORMAL)
-			gui.Label(rl.NewRectangle(width/2+101, float32(48+20*i)+g.strscroll.Y, width/2-124, 20), ent.Item.Name)
+			preview = gui.Button(rl.NewRectangle(width/2+91, float32(48+20*i)+g.strscroll.Y, 80, 20), "Preview")
+			if preview {
+				g.examine = append(g.examine, ent)
+			}
+			gui.Label(rl.NewRectangle(width/2+181, float32(48+20*i)+g.strscroll.Y, width/2-204, 20), ent.Item.Name)
 		}
 		rl.EndScissorMode()
 	}
 
+	if len(g.examine) > 0 {
+		g.examine[len(g.examine)-1].Display(true, func() {
+			g.examine = g.examine[:len(g.examine)-1]
+		})
+	}
 	if g.paused {
 		gui.Panel(rl.NewRectangle((width-300)/2, (height-200)/2, 300, 200), "Menu")
 		cnbtn := gui.Button(rl.NewRectangle((width-300)/2+278, (height-200)/2+2, 20, 20), "X")
@@ -540,15 +591,15 @@ func (g *Game) Populate() error {
 }
 
 func (g *Game) PopulateMaps() {
-	g.Maps = set.FindMaps(g.Game, g.Mods)
+	g.Maps = data.FindMaps(g.Game, g.Mods)
 }
 
 func (g *Game) PopulateUnits() {
-	g.Infantry, g.Squads, g.Vehicles = set.FindUnits(g.Game, g.Mods)
+	g.Infantry, g.Squads, g.Vehicles = data.FindUnits(g.Game, g.Mods)
 }
 
 func (g *Game) PopulateItems() {
-	g.Items = set.FindItems(g.Game, g.Mods)
+	g.Items = data.FindItems(g.Game, g.Mods)
 }
 
 func (g *Game) ReRoll() {
@@ -661,50 +712,21 @@ func (g *Game) RollStore() {
 func (g *Game) Write() error {
 	g.State.Status.Seed = int64(rand.Int32())
 	g.State.Status.Timestamp = time.Now().Unix()
-	g.State.Campaign = &res.Campaign{
-		Soldiers:    []*res.Soldier{},
-		Squads:      []*res.Squad{},
-		Inventories: []*res.Inventory{},
-	}
 
-	for _, sqd := range g.Owned.Squads {
-		squad := res.Squad{
-			Name:     fmt.Sprintf("%s(%s)", sqd.Name, sqd.Side),
-			Soldiers: []*res.Soldier{},
-		}
+	i := 1
+	for _, sqd := range g.State.Campaign.Squads {
 		for _, inf := range sqd.Soldiers {
-			soldier := res.Soldier{
-				Id:   len(g.State.Campaign.Soldiers) + 1001,
-				Path: inf.Name,
-				Name: inf.Nid,
-				Mid:  fmt.Sprintf("%d", len(g.State.Campaign.Soldiers)),
-			}
-			inventory := res.Inventory{
-				Id:    soldier.Id,
-				Items: inf.Inv.Items,
-			}
-			g.State.Campaign.Soldiers = append(g.State.Campaign.Soldiers, &soldier)
-			g.State.Campaign.Inventories = append(g.State.Campaign.Inventories, &inventory)
-			squad.Soldiers = append(squad.Soldiers, &soldier)
+			inf.Id = i + 1000
+			inf.Inv.Id = i
+			i++
 		}
-		g.State.Campaign.Squads = append(g.State.Campaign.Squads, &squad)
 	}
-	for _, veh := range g.Owned.Vehicles {
-		vehicle := res.Squad{
-			Name:     veh.Name,
-			Soldiers: []*res.Soldier{},
-		}
+	for _, veh := range g.State.Campaign.Vehicles {
 		for _, inf := range veh.Crew {
-			soldier := res.Soldier{
-				Id:   len(g.State.Campaign.Soldiers) + 1001,
-				Path: inf.Name,
-				Name: inf.Nid,
-				Mid:  fmt.Sprintf("%d", len(g.State.Campaign.Soldiers)),
-			}
-			g.State.Campaign.Soldiers = append(g.State.Campaign.Soldiers, &soldier)
-			vehicle.Soldiers = append(vehicle.Soldiers, &soldier)
+			inf.Id = i + 1000
+			inf.Inv.Id = i
+			i++
 		}
-		g.State.Campaign.Squads = append(g.State.Campaign.Squads, &vehicle)
 	}
 
 	defer func() { g.State.Status.Timestamp = time.Now().Unix() }()
@@ -712,17 +734,12 @@ func (g *Game) Write() error {
 }
 
 func (g *Game) Read() error {
-	state, err := res.ReadSave(g.Profile + "/" + g.State.Status.Name + ".sav")
+	state, err := data.ReadSave(g.Profile + "/" + g.State.Status.Name + ".sav")
 	if err != nil {
 		return err
 	}
 
-	g.Owned = Owned{
-		Squads:   []set.Squad{},
-		Infantry: []set.Infantry{},
-		Vehicles: []set.Vehicle{},
-		Items:    []res.Item{},
-	}
+	// TODO
 
 	g.State = *state
 	return nil
@@ -731,6 +748,9 @@ func (g *Game) Read() error {
 func (g *Game) Finished() (bool, error) {
 	info, err := os.Stat(g.Profile + "/" + strcase.ToLowerCamel(g.State.Status.Name) + ".sav")
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
 		return false, err
 	}
 	return info.ModTime().Unix() > g.State.Status.Timestamp, nil

@@ -11,8 +11,7 @@ import (
 	"strings"
 
 	"roguefront/pkg/app"
-	"roguefront/pkg/set"
-	"roguefront/res"
+	"roguefront/pkg/data"
 
 	"github.com/sqweek/dialog"
 
@@ -46,7 +45,7 @@ type MainMenu struct {
 	levlist    []string `json:"-"`
 	resources  string   `json:"-"`
 
-	modlist []res.Mod `json:"-"`
+	modlist []data.Mod `json:"-"`
 
 	profilemode  bool         `json:"-"`
 	gamemode     bool         `json:"-"`
@@ -87,7 +86,7 @@ func (s *MainMenu) Init() error {
 	s.levels = "#01#Easy;#02#Normal;#03#Hard;#04#Heroic"
 	s.levlist = []string{"easy", "normal", "hard", "heroic"}
 	s.resources = "#01#Low;#02#Standard;#03#High"
-	s.modlist = []res.Mod{}
+	s.modlist = []data.Mod{}
 
 	s.profilemode = false
 	s.gamemode = false
@@ -470,7 +469,7 @@ func (s *MainMenu) UpdateNations() {
 		"uk":   "Commonwealth",
 	}
 
-	nset := set.FindNations(s.Game, s.modlist)
+	nset := data.FindNations(s.Game, s.modlist)
 	for _, nation := range nset {
 		if nation == "eng" && !s.Finest {
 			continue
@@ -506,7 +505,7 @@ func (s *MainMenu) UpdateLevels() {
 	levels := ""
 	levlist := []string{}
 
-	lset := set.FindLevels(s.Game, s.modlist)
+	lset := data.FindLevels(s.Game, s.modlist)
 	for _, level := range lset {
 		levlist = append(levlist, level)
 		levels = levels + fmt.Sprintf("#%02d#%s;", len(levlist), level)
@@ -525,7 +524,7 @@ func (s *MainMenu) UpdateLevels() {
 func (s *MainMenu) UpdateResources() {
 	resources := ""
 
-	rset := set.FindResources(s.Game, s.modlist)
+	rset := data.FindResources(s.Game, s.modlist)
 	for i, level := range rset {
 		resources = resources + fmt.Sprintf("#%02d#%s;", i+1, level)
 	}
@@ -544,6 +543,6 @@ func (s *MainMenu) UpdateMods() (err error) {
 		return nil
 	}
 
-	s.modlist, err = res.FindMods(s.Workshop)
+	s.modlist, err = data.FindMods(s.Workshop)
 	return err
 }

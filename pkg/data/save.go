@@ -1,4 +1,4 @@
-package res
+package data
 
 import (
 	"archive/zip"
@@ -37,37 +37,11 @@ type Status struct {
 }
 
 type Campaign struct {
-	Soldiers    []*Soldier   `json:"soldiers"`
+	Infantry    []*Infantry  `json:"infantry"`
+	Vehicles    []*Vehicle   `json:"vehicles"`
 	Inventories []*Inventory `json:"inventories"`
+	Items       []*Item      `json:"items"`
 	Squads      []*Squad     `json:"squads"`
-}
-
-type Soldier struct {
-	Id   int    `json:"id"`
-	Path string `json:"path"`
-	Name string `json:"name"`
-	Mid  string `json:"mid"`
-}
-
-type Inventory struct {
-	Id    int    `json:"id"`
-	Items []Item `json:"items"`
-}
-
-type Item struct {
-	Name   string  `json:"name"`
-	Amount float64 `json:"amount"`
-	Pos    *struct {
-		X int `json:"x"`
-		Y int `json:"y"`
-	} `json:"pos"`
-	Equip string `json:"equip"`
-	Cost  int    `json:"cost"`
-}
-
-type Squad struct {
-	Name     string     `json:"name"`
-	Soldiers []*Soldier `json:"soldiers"`
 }
 
 func ReadSave(filename string) (*Save, error) {
@@ -217,15 +191,30 @@ func (c *Campaign) Bytes() []byte {
 	var w bytes.Buffer
 
 	fmt.Fprintf(&w, "{campaign\n")
-	for _, soldier := range c.Soldiers {
-		fmt.Fprintf(&w, "%s", soldier.Bytes())
+	for _, sqd := range c.Squads {
+		for _, inf := range sqd.Soldiers {
+			fmt.Fprintf(&w, "%s", inf.Bytes())
+		}
 	}
-	for _, inventory := range c.Inventories {
-		fmt.Fprintf(&w, "%s", inventory.Bytes())
+	for _, veh := range c.Vehicles {
+		for _, inf := range veh.Crew {
+			fmt.Fprintf(&w, "%s", inf.Bytes())
+		}
+	}
+	for _, veh := range c.Vehicles {
+		fmt.Fprintf(&w, "%s", veh.Bytes())
+	}
+	for _, sqd := range c.Squads {
+		for _, inf := range sqd.Soldiers {
+			fmt.Fprintf(&w, "%s", inf.Inv.Bytes())
+		}
+	}
+	for _, veh := range c.Vehicles {
+		fmt.Fprintf(&w, "%s", veh.Inv.Bytes())
 	}
 	fmt.Fprintf(&w, "\t{CampaignSquads\n")
-	for _, squad := range c.Squads {
-		fmt.Fprintf(&w, "%s", squad.Bytes())
+	for _, sqd := range c.Squads {
+		fmt.Fprintf(&w, "%s", sqd.Bytes())
 	}
 	fmt.Fprintf(&w, "\t}\n")
 	fmt.Fprintf(&w, "}\n")
@@ -233,10 +222,10 @@ func (c *Campaign) Bytes() []byte {
 	return w.Bytes()
 }
 
-func (s *Soldier) Bytes() []byte {
+func (s *Infantry) Bytes() []byte {
 	var w bytes.Buffer
 
-	fmt.Fprintf(&w, "\t{human \"%s\" 0x%04d\n", s.Path, s.Id)
+	fmt.Fprintf(&w, "\t{human \"%s\" 0x%04d\n", s.Name, s.Id)
 	fmt.Fprintf(&w, "\t\t{Position 0 0}\n")
 	fmt.Fprintf(&w, "\t\t{TexMod \"auto\"}\n")
 	fmt.Fprintf(&w, "\t\t{SpawnedInFog}\n")
@@ -245,8 +234,8 @@ func (s *Soldier) Bytes() []byte {
 	fmt.Fprintf(&w, "\t\t\t{disabled}\n")
 	fmt.Fprintf(&w, "\t\t}\n")
 	fmt.Fprintf(&w, "\t\t{Player 0}\n")
-	fmt.Fprintf(&w, "\t\t{MID %s}\n", s.Mid)
-	fmt.Fprintf(&w, "\t\t{NameId %s}\n", s.Name)
+	fmt.Fprintf(&w, "\t\t{MID %s}\n", s.Id-1000)
+	fmt.Fprintf(&w, "\t\t{NameId %s}\n", s.Nid)
 	fmt.Fprintf(&w, "\t\t{FsmState \"stand_noaim\"}\n")
 	fmt.Fprintf(&w, "\t}\n")
 
@@ -291,6 +280,14 @@ func (s *Squad) Bytes() []byte {
 		fmt.Fprintf(&w, " 0x%04d", soldier.Id)
 	}
 	fmt.Fprintf(&w, "}\n")
+
+	return w.Bytes()
+}
+
+func (v *Vehicle) Bytes() []byte {
+	var w bytes.Buffer
+
+	// TODO
 
 	return w.Bytes()
 }
@@ -374,11 +371,11 @@ func ParseCampaign(data []byte) (*Campaign, error) {
 
 		switch {
 		case strings.HasPrefix(line, "{Human"):
-			soldier, err := ParseSoldier(scanner, line)
+			inf, err := ParseInfantry(scanner, line)
 			if err != nil {
 				return nil, err
 			}
-			c.Soldiers = append(c.Soldiers, soldier)
+			c.Infantry = append(c.Infantry, inf)
 		case strings.HasPrefix(line, "{Inventory"):
 			inventory, err := ParseInventory(scanner, line)
 			if err != nil {
@@ -392,15 +389,15 @@ func ParseCampaign(data []byte) (*Campaign, error) {
 	return c, scanner.Err()
 }
 
-func ParseSoldier(scanner *bufio.Scanner, line string) (*Soldier, error) {
-	s := &Soldier{}
+func ParseInfantry(scanner *bufio.Scanner, line string) (*Infantry, error) {
+	inf := &Infantry{}
 
 	fields := strings.Fields(line)
 	if len(fields) >= 2 {
-		s.Path = strings.Trim(fields[1], "\"")
+		inf.Name = strings.Trim(fields[1], "\"")
 	}
 	if len(fields) >= 3 {
-		s.Id = int(ParseHex(strings.Trim(fields[2], "0x")))
+		inf.Id = int(ParseHex(strings.Trim(fields[2], "0x")))
 	}
 
 	for scanner.Scan() {
@@ -411,16 +408,14 @@ func ParseSoldier(scanner *bufio.Scanner, line string) (*Soldier, error) {
 		}
 
 		switch {
-		case strings.HasPrefix(line, "{MID"):
-			s.Mid = ParseString(line)
 		case strings.HasPrefix(line, "{NameId"):
-			s.Name = ParseString(line)
+			inf.Nid = ParseString(line)
 		case strings.HasPrefix(line, "}"):
 			break
 		}
 	}
 
-	return s, scanner.Err()
+	return inf, scanner.Err()
 }
 
 func ParseInventory(scanner *bufio.Scanner, line string) (*Inventory, error) {
