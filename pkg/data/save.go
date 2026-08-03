@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	rand "math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Save struct {
@@ -44,55 +46,76 @@ type Campaign struct {
 	Squads      []*Squad     `json:"squads"`
 }
 
-func ReadSave(filename string) (*Save, error) {
+func (s *Save) Read(filename string) error {
+	if s == nil {
+		return fmt.Errorf("Save is nil")
+	}
 	r, err := zip.OpenReader(filename)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer r.Close()
-
-	s := &Save{}
 
 	for _, f := range r.File {
 		rc, err := f.Open()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		data, err := io.ReadAll(rc)
 		rc.Close()
 
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		switch f.Name {
 		case "campaign.scn":
 			s.Campaign, err = ParseCampaign(data)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 		case "status":
 			s.Status, err = ParseStatus(data)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
 	if s.Campaign == nil {
-		return nil, fmt.Errorf("%s\n", "campaign.scn missing")
+		return fmt.Errorf("%s\n", "campaign.scn missing")
 	}
 
 	if s.Status == nil {
-		return nil, fmt.Errorf("%s\n", "status missing")
+		return fmt.Errorf("%s\n", "status missing")
 	}
 
-	return s, nil
+	return nil
 }
 
 func (s *Save) Write(path string) error {
+	s.Status.Seed = int64(rand.Int32())
+	s.Status.Timestamp = time.Now().Unix()
+	defer func() { s.Status.Timestamp = time.Now().Unix() }()
+
+	i := 1
+	for _, sqd := range s.Campaign.Squads {
+		for _, inf := range sqd.Soldiers {
+			inf.Id = i + 1000
+			inf.Inv.Id = i
+			i++
+		}
+	}
+	for _, veh := range s.Campaign.Vehicles {
+		for _, inf := range veh.Crew {
+			inf.Id = i + 1000
+			inf.Inv.Id = i
+			i++
+		}
+	}
+
 	file, err := os.Create(path + "/" + s.Status.Name + ".sav")
 	if err != nil {
 		return err
