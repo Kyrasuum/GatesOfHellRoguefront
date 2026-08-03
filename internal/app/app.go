@@ -1,20 +1,19 @@
 package app
 
 import (
-	"image/color"
+	// "image/color"
 	"log"
-	"os"
-	"time"
+	// "os"
+	// "time"
 
-	"roguefront/internal/stage"
+	// "roguefront/internal/stage"
 	"roguefront/pkg/config"
-	"roguefront/pkg/input"
-	"roguefront/res"
+	// "roguefront/pkg/input"
 
 	App "roguefront/pkg/app"
 	pub_stage "roguefront/pkg/stage"
 
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/AllenDang/giu"
 )
 
 var ()
@@ -30,6 +29,7 @@ type app struct {
 	height int32
 
 	shutdown bool
+	window   *giu.MasterWindow
 }
 
 // initialize app
@@ -44,13 +44,9 @@ func (a *app) init() error {
 	a.drawInterval = 16
 
 	a.shutdown = false
+	a.window = nil
 
 	App.CurApp = a
-
-	err := res.Init()
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -64,27 +60,25 @@ func (a *app) handleInput(dt float32) {
 
 // render cycle
 func (a *app) render() {
-	rl.BeginDrawing()
-	rl.ClearBackground(color.RGBA{0, 0, 0, 255})
 	if a.curStage != nil {
 		a.curStage.Render()
 	}
-	rl.EndDrawing()
 }
 
 // handle resizing
 func (a *app) onResize() {
-	w := int32(rl.GetScreenWidth())
-	h := int32(rl.GetScreenHeight())
-
-	//check for resize event
-	if a.width != w || a.height != h {
-		if a.curStage != nil {
-			a.curStage.OnResize(w, h)
-		}
-		a.width = w
-		a.height = h
-	}
+	// w := int32(rl.GetScreenWidth())
+	// h := int32(rl.GetScreenHeight())
+	//
+	// //check for resize event
+	//
+	//	if a.width != w || a.height != h {
+	//		if a.curStage != nil {
+	//			a.curStage.OnResize(w, h)
+	//		}
+	//		a.width = w
+	//		a.height = h
+	//	}
 }
 
 // update cycle
@@ -106,57 +100,63 @@ func (a *app) GetHeight() int32 {
 
 // detect if app should continue running
 func (a *app) Running() bool {
-	return !a.shutdown && !rl.WindowShouldClose()
+	return !a.shutdown
 }
 
 // main run loop for the app while running
 func (a *app) run(debug bool) error {
-	rl.SetConfigFlags(rl.FlagWindowResizable)
-	rl.InitWindow(a.width, a.height, config.AppName)
-	rl.SetTargetFPS(int32(time.Second / (time.Duration(a.drawInterval) * time.Millisecond)))
-
-	if debug {
-		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer file.Close()
-		log.SetOutput(file)
-	}
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	defer a.Exit()
-	err := input.InitBindings()
-	if err != nil {
-		return err
-	}
-
-	menu := stage.MainMenu{}
-	err = menu.Init()
-	if err != nil {
-		return err
-	}
-	a.SetStage(&menu)
-
-	//logic loop
-	go func() {
-		for a.Running() {
-			dt := rl.GetFrameTime()
-			a.onResize()
-			a.update(dt)
-			if rl.IsCursorOnScreen() {
-				a.handleInput(dt)
-			}
-			time.Sleep(time.Duration(a.logicInterval) * time.Millisecond)
-		}
-	}()
-
-	//handle gpu calls
-	for a.Running() {
-		a.render()
-		time.Sleep(time.Duration(a.drawInterval) * time.Millisecond)
-	}
-	rl.CloseWindow()
+	a.window = giu.NewMasterWindow(config.AppName, int(a.width), int(a.height), 0)
+	a.window.Run(func() {
+		giu.SingleWindow().Layout(
+			giu.Label("Hello world from giu"),
+		)
+	})
+	// 	rl.SetConfigFlags(rl.FlagWindowResizable)
+	// 	rl.InitWindow(a.width, a.height, config.AppName)
+	// 	rl.SetTargetFPS(int32(time.Second / (time.Duration(a.drawInterval) * time.Millisecond)))
+	//
+	// 	if debug {
+	// 		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_WRONLY, 0644)
+	// 		if err != nil {
+	// 			log.Fatal(err)
+	// 		}
+	// 		defer file.Close()
+	// 		log.SetOutput(file)
+	// 	}
+	// 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	//
+	// 	defer a.Exit()
+	// 	err := input.InitBindings()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	//
+	// 	menu := stage.MainMenu{}
+	// 	err = menu.Init()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	a.SetStage(&menu)
+	//
+	// 	//logic loop
+	// 	go func() {
+	// 		for a.Running() {
+	// 			dt := rl.GetFrameTime()
+	// 			a.onResize()
+	// 			a.update(dt)
+	// 			if rl.IsCursorOnScreen() {
+	// 				a.handleInput(dt)
+	// 			}
+	// 			time.Sleep(time.Duration(a.logicInterval) * time.Millisecond)
+	// 		}
+	// 	}()
+	//
+	// 	//handle gpu calls
+	// 	for a.Running() {
+	// 		a.render()
+	// 		time.Sleep(time.Duration(a.drawInterval) * time.Millisecond)
+	// 	}
+	// 	rl.CloseWindow()
 	return nil
 }
 

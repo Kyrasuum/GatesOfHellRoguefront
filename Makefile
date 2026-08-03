@@ -1,13 +1,8 @@
-BUILD_DIR = ./build/
 PRI_DIR = ./internal/
 PUB_DIR = ./pkg/
 BIN_DIR = ./bin/
 RELEASE_DIR = ./release/
 EXEC = roguefront
-GCC = gcc
-GCP = g++
-CFLAGS = -I$(CURDIR)/include/raylib-go/raylib
-LDFLAGS = -L$(CURDIR)/lib
 
 #Get OS and configure based on OS
 ifeq ($(OS),Windows_NT)
@@ -45,34 +40,22 @@ else
     endif
 endif
 
-DEPS ?=linux-amd64
-ifeq ($(DISTRO),linux)
-	ifeq ($(ARCH),amd64)
-		DEPS ?=linux-amd64
-	endif
-	ifeq ($(ARCH),arm64)
-		DEPS ?=linux-arm64
-	endif
-endif
-ifeq ($(DISTRO),windows)
-	DEPS ?=windows
-endif
 
 .PHONY: run
 #: Starts the project
-run: build .deps
+run: build
 	@$(BIN_DIR)$(EXEC)
 
 .PHONY: build
 #: Performs a clean build of the project
-build: .dev-deps $(PRI_DIR)** $(PUB_DIR)**
+build: .deps $(PRI_DIR)** $(PUB_DIR)**
 	@CGO_ENABLED=1 \
 	GOOS=$(DISTRO) \
 	GOARCH=$(ARCH) \
 	CGO_CFLAGS=$(CFLAGS) \
 	CGO_CPPFLAGS=$(CFLAGS) \
 	CGO_LDFLAGS=$(LDFLAGS) \
-	go build -tags x11,opengl43 -o $(BIN_DIR)$(EXEC) cmd/main.go
+	go build -o $(BIN_DIR)$(EXEC) cmd/main.go
 
 build-wasm:
 	@DISTRO=js \
@@ -101,55 +84,25 @@ release: build .deps
 #: Cleans build files from project
 clean:
 	@rm $(BIN_DIR)$(EXEC) || true;
+	@rm $(RELEASE_DIR)$(EXEC) || true;
 
 .PHONY: clean-all
 #: Cleans slate for project
-clean-all:
-	@rm .dev-deps || true;
+clean-all: clean
 	@rm .deps || true;
 
 # deps include target
 .PHONY: deps
 .deps:
 	@$(MAKE) --no-print-directory deps
+	@go mod tidy
 
 #: Install dependencies for running this project
 deps:
+	@sudo apt-add-repository --update ppa:longsleep/golang-backports
+	@sudo apt install golang
+	@sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libglx-dev libgl1-mesa-dev libxxf86vm-dev
 	@touch .deps
-
-# dev-deps include target
-.dev-deps:
-	@$(MAKE) --no-print-directory dev-deps
-
-# dev-deps for linux
-.PHONY: .dev-deps-linux-amd64
-.dev-deps-linux-amd64:
-	@sudo apt-get install -y libgl1-mesa-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev libwayland-dev libxkbcommon-dev
-	@sudo apt-get install -y libgl-dev libx11-dev xorg-dev libxxf86vm-dev
-
-.PHONY: .dev-deps-linux-arm64
-.dev-deps-linux-arm64:
-	@sudo apt-get install -y libgl1-mesa-dev:arm64 libxi-dev:arm64 libxcursor-dev:arm64 libxrandr-dev:arm64 libxinerama-dev:arm64 libwayland-dev:arm64 libxkbcommon-dev:arm64
-	@sudo apt-get install -y libgl-dev:arm64 libx11-dev:arm64 xorg-dev:arm64 libxxf86vm-dev:arm64 mingw-w64
-
-# dev-deps for windows
-.PHONY: .dev-deps-windows
-.dev-deps-windows:
-	@cd include/raylib-go/raylib/src && make PLATFORM=PLATFORM_DESKTOP
-
-.PHONY: dev-deps
-#: Install dependencies for compiling targets in this makefile
-dev-deps: .deps
-	@git submodule update --init --recursive
-	@go mod tidy
-	@$(MAKE) --no-print-directory .dev-deps-$(DEPS)
-	@touch .dev-deps
-
-.PHONY: test
-#: Perfrom unit tests for application
-test:
-	@gofmt -e -w .
-	@go test ./... -cover || true;
 
 .PHONY: help
 #: Lists available commands

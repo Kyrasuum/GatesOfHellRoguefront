@@ -1,22 +1,25 @@
 module roguefront
 
-go 1.25.0
-
-replace github.com/gen2brain/raylib-go/raylib => ./include/raylib-go/raylib
+go 1.26.5
 
 require (
-	github.com/gen2brain/raylib-go/raygui v0.0.0-20260730054012-0e0ad64f1120
-	github.com/gen2brain/raylib-go/raylib v0.56.0-dev.0.20260513185948-c427d7332954
-	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
+	github.com/AllenDang/giu v0.15.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac
-	github.com/zyedidia/json5 v0.0.0-20200102012142-2da050b1a98d
 )
 
 require (
-	github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf // indirect
-	github.com/ebitengine/purego v0.10.0 // indirect
-	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	github.com/AllenDang/cimgui-go v1.5.0 // indirect
+	github.com/AllenDang/go-findfont v0.0.0-20200702051237-9f180485aeb8 // indirect
+	github.com/faiface/mainthread v0.0.0-20171120011319-8b78f0a41ae3 // indirect
+	github.com/gucio321/glm-go v0.0.0-20241029220517-e1b5a3e011c8 // indirect
+	github.com/mazznoer/csscolorparser v0.1.8 // indirect
+	github.com/napsy/go-css v1.0.0 // indirect
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
+	github.com/sahilm/fuzzy v0.1.2 // indirect
+	golang.design/x/hotkey v0.4.1 // indirect
+	golang.design/x/mainthread v0.3.0 // indirect
+	golang.org/x/image v0.41.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	gopkg.in/eapache/queue.v1 v1.1.0 // indirect
 )

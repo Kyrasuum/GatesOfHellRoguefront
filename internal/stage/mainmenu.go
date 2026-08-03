@@ -12,11 +12,7 @@ import (
 
 	"roguefront/pkg/app"
 	"roguefront/pkg/data"
-
-	"github.com/sqweek/dialog"
-
-	gui "github.com/gen2brain/raylib-go/raygui"
-	rl "github.com/gen2brain/raylib-go/raylib"
+	// "github.com/sqweek/dialog"
 )
 
 var ()
@@ -47,16 +43,16 @@ type MainMenu struct {
 
 	modlist []data.Mod `json:"-"`
 
-	profilemode  bool         `json:"-"`
-	gamemode     bool         `json:"-"`
-	workshopmode bool         `json:"-"`
-	panel        bool         `json:"-"`
-	ddnation     bool         `json:"-"`
-	ddenemy      bool         `json:"-"`
-	ddlevel      bool         `json:"-"`
-	ddresources  bool         `json:"-"`
-	scroll       rl.Vector2   `json:"-"`
-	view         rl.Rectangle `json:"-"`
+	// profilemode  bool         `json:"-"`
+	// gamemode     bool         `json:"-"`
+	// workshopmode bool         `json:"-"`
+	// panel        bool         `json:"-"`
+	// ddnation     bool         `json:"-"`
+	// ddenemy      bool         `json:"-"`
+	// ddlevel      bool         `json:"-"`
+	// ddresources  bool         `json:"-"`
+	// scroll       rl.Vector2   `json:"-"`
+	// view         rl.Rectangle `json:"-"`
 }
 
 func (s *MainMenu) Init() error {
@@ -88,16 +84,16 @@ func (s *MainMenu) Init() error {
 	s.resources = "#01#Low;#02#Standard;#03#High"
 	s.modlist = []data.Mod{}
 
-	s.profilemode = false
-	s.gamemode = false
-	s.workshopmode = false
-	s.panel = false
-	s.ddnation = false
-	s.ddenemy = false
-	s.ddlevel = false
-	s.ddresources = false
-	s.scroll = rl.NewVector2(0, 0)
-	s.view = rl.NewRectangle(0, 0, 0, 0)
+	// s.profilemode = false
+	// s.gamemode = false
+	// s.workshopmode = false
+	// s.panel = false
+	// s.ddnation = false
+	// s.ddenemy = false
+	// s.ddlevel = false
+	// s.ddresources = false
+	// s.scroll = rl.NewVector2(0, 0)
+	// s.view = rl.NewRectangle(0, 0, 0, 0)
 
 	err := s.LoadSettings()
 	if err != nil {
@@ -117,147 +113,165 @@ func (s *MainMenu) Render() {
 		return
 	}
 
-	rl.ClearBackground(rl.Black)
-
-	height := float32(app.CurApp.GetHeight())
-	width := float32(app.CurApp.GetWidth())
-
-	if s.panel {
-		gui.SetState(gui.STATE_DISABLED)
-	} else {
-		gui.SetState(gui.STATE_NORMAL)
-	}
-
-	// main buttons
-	nwbtn := gui.Button(rl.NewRectangle(0, height-120, 100, 40), "New Game")
-	if nwbtn {
-		s.panel = true
-		s.UpdateMods()
-		s.UpdateNations()
-		s.UpdateLevels()
-		s.UpdateResources()
-	}
-	ldbtn := gui.Button(rl.NewRectangle(0, height-80, 100, 40), "Load Game")
-	if ldbtn {
-		file, err := dialog.File().
-			Filter("Json Files", "json").
-			Title("Load Previous Roguefront Campaign").Load()
-		if err == nil {
-			s.LoadGame(file)
-		}
-	}
-	exbtn := gui.Button(rl.NewRectangle(0, height-40, 100, 40), "Exit")
-	if exbtn {
-		app.CurApp.Exit()
-	}
-
-	// settings panel
-	gui.Panel(rl.NewRectangle(100, height-120, width-100, 120), "Settings")
-	gui.Label(rl.NewRectangle(105, height-95, 100, 20), "User Profile Path:")
-	if gui.TextBox(rl.NewRectangle(205, height-95, width-209, 20), &s.Profile, 260, s.profilemode) {
-		s.profilemode = !s.profilemode
-	}
-	prfile := gui.Button(rl.NewRectangle(width-22, height-95, 20, 20), "...")
-	if prfile {
-		file, err := dialog.Directory().
-			Title("Select User Profile Path for Call to Arms Gates of Hell Ostfront (Documents\\My Games\\gates of hell\\profiles\\#######)").Browse()
-		if err == nil {
-			s.Profile = file
-		}
-	}
-	gui.Label(rl.NewRectangle(105, height-70, 100, 20), "Game Directory:")
-	if gui.TextBox(rl.NewRectangle(205, height-70, width-209, 20), &s.Game, 260, s.gamemode) {
-		s.gamemode = !s.gamemode
-	}
-	gmfile := gui.Button(rl.NewRectangle(width-22, height-70, 20, 20), "...")
-	if gmfile {
-		file, err := dialog.Directory().
-			Title("Select Game Directory for Call to Arms Gates of Hell Ostfront").Browse()
-		if err == nil {
-			s.Game = file
-		}
-	}
-	gui.Label(rl.NewRectangle(105, height-45, 100, 20), "Mods Directory:")
-	if gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Workshop, 260, s.workshopmode) {
-		s.workshopmode = !s.workshopmode
-	}
-	mdfile := gui.Button(rl.NewRectangle(width-22, height-45, 20, 20), "...")
-	if mdfile {
-		file, err := dialog.Directory().
-			Title("Select Mods Directory for Call to Arms Gates of Hell Ostfront").Browse()
-		if err == nil {
-			s.Workshop = file
-		}
-	}
-
-	// new game panel
-	if s.panel {
-		gui.SetState(gui.STATE_NORMAL)
-		gui.Panel(rl.NewRectangle((width-500)/2, (height-400)/2, 500, 400), "New Game")
-		cnbtn := gui.Button(rl.NewRectangle((width-500)/2+478, (height-400)/2+2, 20, 20), "X")
-		if cnbtn {
-			s.panel = false
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+370, 80, 20), "Campaign Name:")
-		gui.TextBox(rl.NewRectangle((width-500)/2+95, (height-400)/2+370, 285, 20), &s.Name, 260, true)
-		stbtn := gui.Button(rl.NewRectangle((width-500)/2+390, (height-400)/2+370, 100, 20), "Start Game")
-		if stbtn {
-			s.NewGame()
-		}
-
-		gui.ScrollPanel(rl.NewRectangle((width-500)/2+10, (height-400)/2+187, 480, 175), "", rl.NewRectangle(0, 0, 465, float32(len(s.modlist)*25)), &s.scroll, &s.view)
-		rl.BeginScissorMode(int32(s.view.X), int32(s.view.Y), int32(s.view.Width), int32(s.view.Height))
-		for i, mod := range s.modlist {
-			if gui.CheckBox(rl.NewRectangle((width-500)/2+20, (height-400)/2+192+float32(25*i+5)+s.scroll.Y, 10, 10), mod.Name, &s.modlist[i].Enabled) {
-				s.UpdateNations()
-				s.UpdateLevels()
-				s.UpdateResources()
-			}
-		}
-		rl.EndScissorMode()
-
-		gui.Line(rl.NewRectangle((width-500)/2+10, (height-400)/2+167, 480, 20), "Mods")
-		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+147, 80, 20), "Airborne:")
-		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+152, 10, 10), "  ", &s.Airborne) {
-			s.UpdateNations()
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+122, 80, 20), "Scorched Earth:")
-		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+127, 10, 10), "  ", &s.Scorched) {
-			s.UpdateNations()
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+97, 80, 20), "Talvisota:")
-		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+102, 10, 10), "  ", &s.Talvisota) {
-			s.UpdateNations()
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+72, 80, 20), "Liberation:")
-		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+77, 10, 10), "  ", &s.Liberation) {
-			s.UpdateNations()
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+47, 80, 20), "Finest Hour:")
-		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+52, 10, 10), "  ", &s.Finest) {
-			s.UpdateNations()
-		}
-		gui.Line(rl.NewRectangle((width-500)/2+360, (height-400)/2+27, 90, 20), "DLC / Maps")
-
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+147, 80, 20), "Fog of War:")
-		gui.CheckBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+152, 10, 10), "  ", &s.Fow)
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+122, 80, 20), "Resources:")
-		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+122, 220, 20), s.resources, &s.Reslvl, s.ddresources) {
-			s.ddresources = !s.ddresources
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+92, 80, 20), "Difficulty:")
-		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+92, 220, 20), s.levels, &s.Difficulty, s.ddlevel) {
-			s.ddlevel = !s.ddlevel
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+62, 80, 20), "Enemy Nation:")
-		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+62, 220, 20), s.nations, &s.Enemy, s.ddenemy) {
-			s.ddenemy = !s.ddenemy
-		}
-		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+32, 80, 20), "Player Nation:")
-		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+32, 220, 20), s.nations, &s.Nation, s.ddnation) {
-			s.ddnation = !s.ddnation
-		}
-	}
+	// rl.ClearBackground(rl.Black)
+	//
+	// height := float32(app.CurApp.GetHeight())
+	// width := float32(app.CurApp.GetWidth())
+	//
+	//	if s.panel {
+	//		gui.SetState(gui.STATE_DISABLED)
+	//	} else {
+	//
+	//		gui.SetState(gui.STATE_NORMAL)
+	//	}
+	//
+	// // main buttons
+	// nwbtn := gui.Button(rl.NewRectangle(0, height-120, 100, 40), "New Game")
+	//
+	//	if nwbtn {
+	//		s.panel = true
+	//		s.UpdateMods()
+	//		s.UpdateNations()
+	//		s.UpdateLevels()
+	//		s.UpdateResources()
+	//	}
+	//
+	// ldbtn := gui.Button(rl.NewRectangle(0, height-80, 100, 40), "Load Game")
+	//
+	//	if ldbtn {
+	//		file, err := dialog.File().
+	//			Filter("Json Files", "json").
+	//			Title("Load Previous Roguefront Campaign").Load()
+	//		if err == nil {
+	//			s.LoadGame(file)
+	//		}
+	//	}
+	//
+	// exbtn := gui.Button(rl.NewRectangle(0, height-40, 100, 40), "Exit")
+	//
+	//	if exbtn {
+	//		app.CurApp.Exit()
+	//	}
+	//
+	// // settings panel
+	// gui.Panel(rl.NewRectangle(100, height-120, width-100, 120), "Settings")
+	// gui.Label(rl.NewRectangle(105, height-95, 100, 20), "User Profile Path:")
+	//
+	//	if gui.TextBox(rl.NewRectangle(205, height-95, width-209, 20), &s.Profile, 260, s.profilemode) {
+	//		s.profilemode = !s.profilemode
+	//	}
+	//
+	// prfile := gui.Button(rl.NewRectangle(width-22, height-95, 20, 20), "...")
+	//
+	//	if prfile {
+	//		file, err := dialog.Directory().
+	//			Title("Select User Profile Path for Call to Arms Gates of Hell Ostfront (Documents\\My Games\\gates of hell\\profiles\\#######)").Browse()
+	//		if err == nil {
+	//			s.Profile = file
+	//		}
+	//	}
+	//
+	// gui.Label(rl.NewRectangle(105, height-70, 100, 20), "Game Directory:")
+	//
+	//	if gui.TextBox(rl.NewRectangle(205, height-70, width-209, 20), &s.Game, 260, s.gamemode) {
+	//		s.gamemode = !s.gamemode
+	//	}
+	//
+	// gmfile := gui.Button(rl.NewRectangle(width-22, height-70, 20, 20), "...")
+	//
+	//	if gmfile {
+	//		file, err := dialog.Directory().
+	//			Title("Select Game Directory for Call to Arms Gates of Hell Ostfront").Browse()
+	//		if err == nil {
+	//			s.Game = file
+	//		}
+	//	}
+	//
+	// gui.Label(rl.NewRectangle(105, height-45, 100, 20), "Mods Directory:")
+	//
+	//	if gui.TextBox(rl.NewRectangle(205, height-45, width-209, 20), &s.Workshop, 260, s.workshopmode) {
+	//		s.workshopmode = !s.workshopmode
+	//	}
+	//
+	// mdfile := gui.Button(rl.NewRectangle(width-22, height-45, 20, 20), "...")
+	//
+	//	if mdfile {
+	//		file, err := dialog.Directory().
+	//			Title("Select Mods Directory for Call to Arms Gates of Hell Ostfront").Browse()
+	//		if err == nil {
+	//			s.Workshop = file
+	//		}
+	//	}
+	//
+	// // new game panel
+	//
+	//	if s.panel {
+	//		gui.SetState(gui.STATE_NORMAL)
+	//		gui.Panel(rl.NewRectangle((width-500)/2, (height-400)/2, 500, 400), "New Game")
+	//		cnbtn := gui.Button(rl.NewRectangle((width-500)/2+478, (height-400)/2+2, 20, 20), "X")
+	//		if cnbtn {
+	//			s.panel = false
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+370, 80, 20), "Campaign Name:")
+	//		gui.TextBox(rl.NewRectangle((width-500)/2+95, (height-400)/2+370, 285, 20), &s.Name, 260, true)
+	//		stbtn := gui.Button(rl.NewRectangle((width-500)/2+390, (height-400)/2+370, 100, 20), "Start Game")
+	//		if stbtn {
+	//			s.NewGame()
+	//		}
+	//
+	//		gui.ScrollPanel(rl.NewRectangle((width-500)/2+10, (height-400)/2+187, 480, 175), "", rl.NewRectangle(0, 0, 465, float32(len(s.modlist)*25)), &s.scroll, &s.view)
+	//		rl.BeginScissorMode(int32(s.view.X), int32(s.view.Y), int32(s.view.Width), int32(s.view.Height))
+	//		for i, mod := range s.modlist {
+	//			if gui.CheckBox(rl.NewRectangle((width-500)/2+20, (height-400)/2+192+float32(25*i+5)+s.scroll.Y, 10, 10), mod.Name, &s.modlist[i].Enabled) {
+	//				s.UpdateNations()
+	//				s.UpdateLevels()
+	//				s.UpdateResources()
+	//			}
+	//		}
+	//		rl.EndScissorMode()
+	//
+	//		gui.Line(rl.NewRectangle((width-500)/2+10, (height-400)/2+167, 480, 20), "Mods")
+	//		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+147, 80, 20), "Airborne:")
+	//		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+152, 10, 10), "  ", &s.Airborne) {
+	//			s.UpdateNations()
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+122, 80, 20), "Scorched Earth:")
+	//		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+127, 10, 10), "  ", &s.Scorched) {
+	//			s.UpdateNations()
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+97, 80, 20), "Talvisota:")
+	//		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+102, 10, 10), "  ", &s.Talvisota) {
+	//			s.UpdateNations()
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+72, 80, 20), "Liberation:")
+	//		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+77, 10, 10), "  ", &s.Liberation) {
+	//			s.UpdateNations()
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+360, (height-400)/2+47, 80, 20), "Finest Hour:")
+	//		if gui.CheckBox(rl.NewRectangle((width-500)/2+440, (height-400)/2+52, 10, 10), "  ", &s.Finest) {
+	//			s.UpdateNations()
+	//		}
+	//		gui.Line(rl.NewRectangle((width-500)/2+360, (height-400)/2+27, 90, 20), "DLC / Maps")
+	//
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+147, 80, 20), "Fog of War:")
+	//		gui.CheckBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+152, 10, 10), "  ", &s.Fow)
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+122, 80, 20), "Resources:")
+	//		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+122, 220, 20), s.resources, &s.Reslvl, s.ddresources) {
+	//			s.ddresources = !s.ddresources
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+92, 80, 20), "Difficulty:")
+	//		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+92, 220, 20), s.levels, &s.Difficulty, s.ddlevel) {
+	//			s.ddlevel = !s.ddlevel
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+62, 80, 20), "Enemy Nation:")
+	//		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+62, 220, 20), s.nations, &s.Enemy, s.ddenemy) {
+	//			s.ddenemy = !s.ddenemy
+	//		}
+	//		gui.Label(rl.NewRectangle((width-500)/2+10, (height-400)/2+32, 80, 20), "Player Nation:")
+	//		if gui.DropdownBox(rl.NewRectangle((width-500)/2+90, (height-400)/2+32, 220, 20), s.nations, &s.Nation, s.ddnation) {
+	//			s.ddnation = !s.ddnation
+	//		}
+	//	}
 }
 
 func (s *MainMenu) Update(dt float32) {
