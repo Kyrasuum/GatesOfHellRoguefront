@@ -30,6 +30,7 @@ type Vehicle struct {
 	Name string      `json:"name"`
 	Side string      `json:"side"`
 	Era  string      `json:"era"`
+	Id   int         `json:"-"`
 	Cost int         `json:"cost"`
 	Crew []*Infantry `json:"crew,omitempty"`
 	Inv  *Inventory  `json:"inv,omitempty"`

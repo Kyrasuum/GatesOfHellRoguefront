@@ -310,7 +310,14 @@ func (s *Squad) Bytes() []byte {
 func (v *Vehicle) Bytes() []byte {
 	var w bytes.Buffer
 
-	// TODO
+	fmt.Fprintf(&w, "\t{Entity \"%s\" 0x%04d\n", v.Name, v.Id)
+	fmt.Fprintf(&w, "\t\t{Position 0 0}\n")
+	fmt.Fprintf(&w, "\t\t{TexMod \"auto\"}\n")
+	fmt.Fprintf(&w, "\t\t{SpawnedInFog}\n")
+	fmt.Fprintf(&w, "\t\t{Player 0}\n")
+	fmt.Fprintf(&w, "\t\t{MID %s}\n", v.Id-1000)
+	fmt.Fprintf(&w, "\t\t{FsmState \"stand_noaim\"}\n")
+	fmt.Fprintf(&w, "\t}\n")
 
 	return w.Bytes()
 }
