@@ -3,12 +3,11 @@ package app
 import (
 	// "image/color"
 	"log"
-	// "os"
-	// "time"
+	"os"
+	"time"
 
-	// "roguefront/internal/stage"
+	"roguefront/internal/stage"
 	"roguefront/pkg/config"
-	// "roguefront/pkg/input"
 
 	App "roguefront/pkg/app"
 	pub_stage "roguefront/pkg/stage"
@@ -25,8 +24,8 @@ type app struct {
 	logicInterval int64
 	drawInterval  int64
 
-	width  int32
-	height int32
+	width  int
+	height int
 
 	shutdown bool
 	window   *giu.MasterWindow
@@ -43,7 +42,6 @@ func (a *app) init() error {
 	a.logicInterval = 16
 	a.drawInterval = 16
 
-	a.shutdown = false
 	a.window = nil
 
 	App.CurApp = a
@@ -52,111 +50,88 @@ func (a *app) init() error {
 }
 
 // handle input
-func (a *app) handleInput(dt float32) {
+func (a *app) handleInput(dt int64) {
 	if a.curStage != nil {
 		a.curStage.OnInput(dt)
 	}
 }
 
 // render cycle
-func (a *app) render() {
+func (a *app) Build() {
 	if a.curStage != nil {
-		a.curStage.Render()
+		a.curStage.Build()
 	}
 }
 
 // handle resizing
 func (a *app) onResize() {
-	// w := int32(rl.GetScreenWidth())
-	// h := int32(rl.GetScreenHeight())
-	//
-	// //check for resize event
-	//
-	//	if a.width != w || a.height != h {
-	//		if a.curStage != nil {
-	//			a.curStage.OnResize(w, h)
-	//		}
-	//		a.width = w
-	//		a.height = h
-	//	}
+	w, h := a.window.GetSize()
+
+	//check for resize event
+	if a.width != w || a.height != h {
+		if a.curStage != nil {
+			a.curStage.OnResize(w, h)
+		}
+		a.width = w
+		a.height = h
+	}
 }
 
 // update cycle
-func (a *app) update(dt float32) {
+func (a *app) update(dt int64) {
 	if a.curStage != nil {
 		a.curStage.Update(dt)
 	}
 }
 
 // get window width
-func (a *app) GetWidth() int32 {
+func (a *app) GetWidth() int {
 	return a.width
 }
 
 // get window height
-func (a *app) GetHeight() int32 {
+func (a *app) GetHeight() int {
 	return a.height
-}
-
-// detect if app should continue running
-func (a *app) Running() bool {
-	return !a.shutdown
 }
 
 // main run loop for the app while running
 func (a *app) run(debug bool) error {
-	a.window = giu.NewMasterWindow(config.AppName, int(a.width), int(a.height), 0)
+	a.window = giu.NewMasterWindow(config.AppName, a.width, a.height, 0)
+	a.window.SetTargetFPS(uint(time.Second / (time.Duration(a.drawInterval) * time.Millisecond)))
+
+	if debug {
+		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+		log.SetOutput(file)
+	}
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	menu := stage.MainMenu{}
+	err := menu.Init()
+	if err != nil {
+		return err
+	}
+	a.SetStage(&menu)
+
+	//render loop
+	dt := time.Now().Unix()
 	a.window.Run(func() {
+		dt = time.Now().Unix() - dt
+		//render
+
 		giu.SingleWindow().Layout(
-			giu.Label("Hello world from giu"),
+			a,
 		)
+		//logic
+		a.onResize()
+		a.update(dt)
+		if giu.IsWindowFocused(giu.FocusedFlags(giu.FocusedFlagsAnyWindow)) {
+			a.handleInput(dt)
+		}
 	})
-	// 	rl.SetConfigFlags(rl.FlagWindowResizable)
-	// 	rl.InitWindow(a.width, a.height, config.AppName)
-	// 	rl.SetTargetFPS(int32(time.Second / (time.Duration(a.drawInterval) * time.Millisecond)))
-	//
-	// 	if debug {
-	// 		file, err := os.OpenFile("info.log", os.O_CREATE|os.O_WRONLY, 0644)
-	// 		if err != nil {
-	// 			log.Fatal(err)
-	// 		}
-	// 		defer file.Close()
-	// 		log.SetOutput(file)
-	// 	}
-	// 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	//
-	// 	defer a.Exit()
-	// 	err := input.InitBindings()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	//
-	// 	menu := stage.MainMenu{}
-	// 	err = menu.Init()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	a.SetStage(&menu)
-	//
-	// 	//logic loop
-	// 	go func() {
-	// 		for a.Running() {
-	// 			dt := rl.GetFrameTime()
-	// 			a.onResize()
-	// 			a.update(dt)
-	// 			if rl.IsCursorOnScreen() {
-	// 				a.handleInput(dt)
-	// 			}
-	// 			time.Sleep(time.Duration(a.logicInterval) * time.Millisecond)
-	// 		}
-	// 	}()
-	//
-	// 	//handle gpu calls
-	// 	for a.Running() {
-	// 		a.render()
-	// 		time.Sleep(time.Duration(a.drawInterval) * time.Millisecond)
-	// 	}
-	// 	rl.CloseWindow()
 	return nil
 }
 
@@ -181,7 +156,7 @@ func (a *app) Exit() {
 	if a.curStage != nil {
 		a.curStage.OnRemove()
 	}
-	a.shutdown = true
+	a.window.Close()
 }
 
 // start the application

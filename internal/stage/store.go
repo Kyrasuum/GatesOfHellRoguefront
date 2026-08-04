@@ -8,6 +8,9 @@ import (
 	"slices"
 
 	"roguefront/pkg/data"
+	"roguefront/pkg/rng"
+
+	"github.com/AllenDang/giu"
 )
 
 type Store struct {
@@ -37,13 +40,21 @@ type StoreItem struct {
 	Amount int       `json:"num"`
 }
 
-func (ent StoreInfantry) Display(editable bool, exit func()) { ent.Infantry.Display(false, exit) }
-func (ent StoreVehicle) Display(editable bool, exit func())  { ent.Vehicle.Display(false, exit) }
-func (ent StoreSquad) Display(editable bool, exit func())    { ent.Squad.Display(false, exit) }
-func (ent StoreItem) Display(editable bool, exit func())     { ent.Item.Display(false, exit) }
+func (ent StoreInfantry) Display(editable bool, exit func()) giu.Widget {
+	return ent.Infantry.Display(false, exit)
+}
+func (ent StoreVehicle) Display(editable bool, exit func()) giu.Widget {
+	return ent.Vehicle.Display(false, exit)
+}
+func (ent StoreSquad) Display(editable bool, exit func()) giu.Widget {
+	return ent.Squad.Display(false, exit)
+}
+func (ent StoreItem) Display(editable bool, exit func()) giu.Widget {
+	return ent.Item.Display(false, exit)
+}
 
 type examinable interface {
-	Display(editable bool, exit func())
+	Display(editable bool, exit func()) giu.Widget
 }
 
 func (g *Game) Populate() error {
@@ -184,4 +195,110 @@ func (g *Game) RollStore() {
 			})
 		}
 	}
+}
+
+func (g *Game) BuyVehicle(i int, ent StoreVehicle) {
+	if g.Money < int64(ent.Vehicle.Cost) {
+		return
+	}
+	veh := ent.Vehicle
+	for i, _ := range veh.Crew {
+		inf := &data.Infantry{}
+		*inf = *veh.Crew[i]
+		inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(100), rand.Int32N(100))
+		items := inf.Inv.Items
+		inf.Inv = &data.Inventory{
+			Name:  inf.Inv.Name,
+			Items: []data.Item{},
+		}
+		for _, item := range items {
+			if item.Amount == 0 {
+				inf.Inv.Items = append(inf.Inv.Items, item)
+			} else {
+				item.Amount = float64(rng.RollOnce(item.Amount))
+				if item.Amount > 0 {
+					inf.Inv.Items = append(inf.Inv.Items, item)
+				}
+			}
+		}
+		veh.Crew[i] = inf
+	}
+	g.State.Campaign.Vehicles = append(g.State.Campaign.Vehicles, &veh)
+	g.Money -= int64(ent.Vehicle.Cost)
+	g.Shop.Vehicles[i].Amount -= 1
+	if g.Shop.Vehicles[i].Amount < 1 {
+		g.Shop.Vehicles = slices.Delete(g.Shop.Vehicles, i, i+1)
+	}
+}
+
+func (g *Game) BuySquad(i int, ent StoreSquad) {
+	if g.Money < int64(ent.Squad.Cost) {
+		return
+	}
+	sqd := ent.Squad
+	for i, _ := range sqd.Soldiers {
+		inf := &data.Infantry{}
+		*inf = *sqd.Soldiers[i]
+		inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(10000), rand.Int32N(10000))
+		items := inf.Inv.Items
+		inf.Inv = &data.Inventory{
+			Name:  inf.Inv.Name,
+			Items: []data.Item{},
+		}
+		for _, item := range items {
+			if item.Amount == 0 {
+				inf.Inv.Items = append(inf.Inv.Items, item)
+			} else {
+				item.Amount = float64(rng.RollOnce(item.Amount))
+				if item.Amount > 0 {
+					inf.Inv.Items = append(inf.Inv.Items, item)
+				}
+			}
+		}
+		sqd.Soldiers[i] = inf
+	}
+	g.State.Campaign.Squads = append(g.State.Campaign.Squads, &sqd)
+	g.Money -= int64(ent.Squad.Cost)
+	g.Shop.Squads[i].Amount -= 1
+	if g.Shop.Squads[i].Amount < 1 {
+		g.Shop.Squads = slices.Delete(g.Shop.Squads, i, i+1)
+	}
+}
+
+func (g *Game) BuyInfantry(i int, ent StoreInfantry) {
+	if g.Money < int64(ent.Infantry.Cost) {
+		return
+	}
+	inf := &data.Infantry{}
+	*inf = *ent.Infantry
+	inf.Nid = fmt.Sprintf("%02d %02d", rand.Int32N(100), rand.Int32N(100))
+	items := inf.Inv.Items
+	inf.Inv = &data.Inventory{
+		Name:  inf.Inv.Name,
+		Items: []data.Item{},
+	}
+	for _, item := range items {
+		if item.Amount == 0 {
+			inf.Inv.Items = append(inf.Inv.Items, item)
+		} else {
+			item.Amount = float64(rng.RollOnce(item.Amount))
+			if item.Amount > 0 {
+				inf.Inv.Items = append(inf.Inv.Items, item)
+			}
+		}
+	}
+	g.State.Campaign.Infantry = append(g.State.Campaign.Infantry, inf)
+	g.Money -= int64(ent.Infantry.Cost)
+	g.Shop.Infantry[i].Amount -= 1
+	if g.Shop.Infantry[i].Amount < 1 {
+		g.Shop.Infantry = slices.Delete(g.Shop.Infantry, i, i+1)
+	}
+}
+
+func (g *Game) BuyItem(ent StoreItem) {
+	if g.Money < int64(ent.Item.Cost) {
+		return
+	}
+	g.State.Campaign.Items = append(g.State.Campaign.Items, &ent.Item)
+	g.Money -= int64(ent.Item.Cost)
 }

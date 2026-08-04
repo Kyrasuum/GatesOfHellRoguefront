@@ -1,12 +1,14 @@
 package data
 
 import (
-// "fmt"
+	// "fmt"
 
-// "roguefront/pkg/app"
+	// "roguefront/pkg/app"
+
+	"github.com/AllenDang/giu"
 )
 
-func (inf Infantry) Display(editable bool, exit func()) {
+func (inf Infantry) Display(editable bool, exit func()) giu.Widget {
 	// width := float32(app.CurApp.GetWidth())
 	// height := float32(app.CurApp.GetHeight())
 	//
@@ -16,9 +18,10 @@ func (inf Infantry) Display(editable bool, exit func()) {
 	//	if cnbtn {
 	//		exit()
 	//	}
+	return nil
 }
 
-func (sqd Squad) Display(editable bool, exit func()) {
+func (sqd Squad) Display(editable bool, exit func()) giu.Widget {
 	// width := float32(app.CurApp.GetWidth())
 	// height := float32(app.CurApp.GetHeight())
 	//
@@ -28,9 +31,10 @@ func (sqd Squad) Display(editable bool, exit func()) {
 	//	if cnbtn {
 	//		exit()
 	//	}
+	return nil
 }
 
-func (veh Vehicle) Display(editable bool, exit func()) {
+func (veh Vehicle) Display(editable bool, exit func()) giu.Widget {
 	// width := float32(app.CurApp.GetWidth())
 	// height := float32(app.CurApp.GetHeight())
 	//
@@ -40,9 +44,10 @@ func (veh Vehicle) Display(editable bool, exit func()) {
 	//	if cnbtn {
 	//		exit()
 	//	}
+	return nil
 }
 
-func (inv Inventory) Display(editable bool, exit func()) {
+func (inv Inventory) Display(editable bool, exit func()) giu.Widget {
 	// width := float32(app.CurApp.GetWidth())
 	// height := float32(app.CurApp.GetHeight())
 	//
@@ -52,9 +57,10 @@ func (inv Inventory) Display(editable bool, exit func()) {
 	//	if cnbtn {
 	//		exit()
 	//	}
+	return nil
 }
 
-func (inv Item) Display(editable bool, exit func()) {
+func (inv Item) Display(editable bool, exit func()) giu.Widget {
 	// width := float32(app.CurApp.GetWidth())
 	// height := float32(app.CurApp.GetHeight())
 	//
@@ -64,4 +70,5 @@ func (inv Item) Display(editable bool, exit func()) {
 	//	if cnbtn {
 	//		exit()
 	//	}
+	return nil
 }

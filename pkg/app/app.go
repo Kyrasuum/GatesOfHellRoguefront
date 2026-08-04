@@ -9,9 +9,10 @@ var (
 )
 
 type App interface {
-	GetWidth() int32
-	GetHeight() int32
+	GetWidth() int
+	GetHeight() int
 	Start(debug bool) error
+	Build() // render call
 	Exit()
 	SetStage(nextStage stage.Stage)
 	GetStage() stage.Stage

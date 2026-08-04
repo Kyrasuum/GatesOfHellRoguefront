@@ -202,7 +202,7 @@ func FindUnits(game string, mods []Mod) (infantry map[string]*Infantry, squads m
 				if inf != nil {
 					cost += inf.Cost
 				} else {
-					log.Printf("Failed to find in conquest infantry: mp/%s/%s/%s\n", squad.Side, squad.Era, ent.Name)
+					log.Printf("Failed to find conquest infantry: mp/%s/%s/%s\n", squad.Side, squad.Era, ent.Name)
 				}
 			}
 			squad.Cost = int(float64(cost) * 1.2) // extra for convenience
@@ -216,7 +216,7 @@ func FindUnits(game string, mods []Mod) (infantry map[string]*Infantry, squads m
 			inf := infantry[fmt.Sprintf("mp/%s/%s/%s", vehicle.Side, vehicle.Era, ent.Name)]
 			vehicle.Crew[i] = inf
 			if inf == nil {
-				log.Printf("Failed to find in conquest infantry: mp/%s/%s/%s\n", vehicle.Side, vehicle.Era, ent.Name)
+				log.Printf("Failed to find conquest infantry: mp/%s/%s/%s\n", vehicle.Side, vehicle.Era, ent.Name)
 			}
 		}
 	}
